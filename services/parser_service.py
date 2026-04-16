@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import List, Tuple
 
 from models.location import Location
 
@@ -26,33 +26,30 @@ class TimelineParserService:
     # Private helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _split_latlng(raw: str, sep: str = ',') -> Tuple[float, float]:
+        """Strip degree signs and split a 'lat<sep>lng' string into floats."""
+        cleaned = raw.replace('\u00b0', '').replace('\xc2\xb0', '').replace('Â°', '')
+        parts = cleaned.split(sep)
+        return float(parts[0].strip()), float(parts[1].strip())
+
     def _parse_visit(self, segment: dict) -> Location:
         candidate = segment['visit']['topCandidate']
-        lat_lng = (
-            candidate['placeLocation']['latLng']
-            .replace('\u00b0', '')   # strip degree sign (handles both encodings)
-            .replace('Â°', '')
-            .split(',')
-        )
+        lat, lng = self._split_latlng(candidate['placeLocation']['latLng'])
         return Location(
             timestamp=segment['startTime'],
-            latitude=float(lat_lng[0]),
-            longitude=float(lat_lng[1]),
+            latitude=lat,
+            longitude=lng,
             semantic_type=candidate['semanticType'],
         )
 
     def _parse_path(self, segment: dict) -> List[Location]:
         locations: List[Location] = []
         for point in segment['timelinePath']:
-            lat_lng = (
-                point['point']
-                .replace('\u00b0', '')
-                .replace('Â°', '')
-                .split(', ')
-            )
+            lat, lng = self._split_latlng(point['point'], sep=', ')
             locations.append(Location(
                 timestamp=point['time'],
-                latitude=float(lat_lng[0]),
-                longitude=float(lat_lng[1]),
+                latitude=lat,
+                longitude=lng,
             ))
         return locations

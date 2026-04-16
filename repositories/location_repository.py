@@ -1,4 +1,3 @@
-import sqlite3
 from typing import List
 
 from database.connection import DatabaseConnection
@@ -15,29 +14,29 @@ class LocationRepository:
         with self._db.get_connection() as conn:
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS timeline (
-                    timestamp    TEXT PRIMARY KEY,
-                    latitude     REAL NOT NULL,
-                    longitude    REAL NOT NULL,
+                    timestamp     TEXT PRIMARY KEY,
+                    latitude      REAL NOT NULL,
+                    longitude     REAL NOT NULL,
                     semantic_type TEXT NOT NULL DEFAULT ''
                 )
             ''')
 
     def insert_many(self, locations: List[Location]) -> int:
         """Insert locations, skipping duplicates. Returns the count inserted."""
-        inserted = 0
+        if not locations:
+            return 0
+        rows = [
+            (loc.timestamp, loc.latitude, loc.longitude, loc.semantic_type)
+            for loc in locations
+        ]
         with self._db.get_connection() as conn:
-            for loc in locations:
-                try:
-                    conn.execute(
-                        '''INSERT INTO timeline
-                               (timestamp, latitude, longitude, semantic_type)
-                           VALUES (?, ?, ?, ?)''',
-                        (loc.timestamp, loc.latitude, loc.longitude, loc.semantic_type),
-                    )
-                    inserted += 1
-                except sqlite3.IntegrityError:
-                    continue
-        return inserted
+            before = conn.total_changes
+            conn.executemany(
+                'INSERT OR IGNORE INTO timeline '
+                '(timestamp, latitude, longitude, semantic_type) VALUES (?, ?, ?, ?)',
+                rows,
+            )
+            return conn.total_changes - before
 
     def get_all_ordered(self) -> List[Location]:
         """Return all locations ordered chronologically."""
