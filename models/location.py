@@ -1,9 +1,11 @@
-from dataclasses import dataclass, field
+from typing import NamedTuple
 
 
-@dataclass
-class Location:
-    timestamp: str
+class Location(NamedTuple):
+    """A point on the combined track used for maps, GPX and distance.
+
+    `timestamp` is UTC, in milliseconds since 1970.
+    """
+    timestamp: int
     latitude: float
     longitude: float
-    semantic_type: str = field(default='')

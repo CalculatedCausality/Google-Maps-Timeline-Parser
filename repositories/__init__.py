@@ -1,3 +1,3 @@
-from .location_repository import LocationRepository
+from .timeline_repository import TimelineRepository
 
-__all__ = ['LocationRepository']
+__all__ = ['TimelineRepository']

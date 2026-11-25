@@ -1,4 +1,17 @@
-timeline.db
-timeline.gpx
-Timeline.json
-travel_heatmap.html
+# Personal location data and everything made from it: never commit these.
+*.db
+*.db-journal
+*.gpx
+*.zip
+*.csv
+*.html
+/*.json
+Takeout/
+Semantic Location History/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/

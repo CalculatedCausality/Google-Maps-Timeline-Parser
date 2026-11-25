@@ -1,0 +1,3 @@
+# Both are optional: see "Optional packages" in the readme.
+folium
+ijson
