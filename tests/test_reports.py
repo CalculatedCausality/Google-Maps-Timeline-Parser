@@ -196,7 +196,8 @@ def test_command_line_end_to_end(write_json, tmp_path, capsys):
     assert 'phone export' in output
     assert 'path_points: 3 read, 3 new' in output
     assert 'COVERAGE REPORT' in output
-    assert '(1 segments, 3 points)' in output
+    # The three route points lie on a straight line, so the cleaned track keeps its ends.
+    assert '(1 segments, 2 points; jumps removed' in output
     assert 'Distance along the track: 0.' in output
     with open(table, encoding='utf-8') as f:
         table_rows = list(csv.DictReader(f))
@@ -205,7 +206,9 @@ def test_command_line_end_to_end(write_json, tmp_path, capsys):
         'location_readings': '1', 'route_points': '3', 'visits': '1', 'movements': '1',
         'reported_km': '0.7'}]
 
-    # Reporting again needs no files, and re-importing changes nothing.
+    # Reporting again needs no files; --raw keeps every reading.
+    assert main(['--db', db, '--gpx', '--gpx-out', gpx, '--raw']) == 0
+    assert '(1 segments, 3 points; readings as recorded)' in capsys.readouterr().out
     assert main(['--db', db, '--distance', '--from', '2030-01-01']) == 0
     assert 'Distance along the track: 0.00 km' in capsys.readouterr().out
 

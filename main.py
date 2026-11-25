@@ -19,6 +19,7 @@ from services.parser_service import (
     ijson,
 )
 from services.parsing_utils import parse_time
+from services.track_cleaner import CleanerSettings, TrackCleaner
 
 
 def build_arguments() -> argparse.ArgumentParser:
@@ -57,6 +58,13 @@ def build_arguments() -> argparse.ArgumentParser:
     parser.add_argument('--max-accuracy', type=float, default=200.0, metavar='METRES',
                         help='Leave out location readings less accurate than this '
                              '(default: 200)')
+    parser.add_argument('--raw', action='store_true',
+                        help='GPX and distance use the readings as they are, without '
+                             'removing jumps, collapsing stays or smoothing')
+    parser.add_argument('--serve', action='store_true',
+                        help='Open a map of the database in your browser (no files written)')
+    parser.add_argument('--port', type=int, default=8765,
+                        help='Port for --serve (default: 8765)')
     return parser
 
 
@@ -133,22 +141,29 @@ def main(argv: Optional[List[str]] = None) -> int:
             coverage.write_csv(report, args.coverage_csv)
             print(f'Coverage table written  →  {args.coverage_csv}')
 
-    distance_svc = DistanceService(max_gap_minutes=args.max_gap_minutes)
+    cleaner = TrackCleaner(CleanerSettings(max_gap_minutes=args.max_gap_minutes))
     export_svc = ExportService()
 
     def track():
         return repo.iter_track(from_ms, to_ms, args.max_accuracy)
 
+    def segments():
+        if args.raw:
+            return cleaner.raw_segments(track())
+        return cleaner.clean(track())
+
+    how = ('readings as recorded' if args.raw
+           else 'jumps removed, stays collapsed, wobble smoothed')
+
     if args.gpx:
-        segments, points = export_svc.export_gpx(
-            distance_svc.split_segments(track()), args.gpx_out)
-        print(f'GPX exported  →  {args.gpx_out}  ({segments:,} segments, {points:,} points)')
+        written, points = export_svc.export_gpx(segments(), args.gpx_out)
+        print(f'GPX exported  →  {args.gpx_out}  ({written:,} segments, {points:,} points; '
+              f'{how})')
 
     if args.distance:
-        total = distance_svc.calculate_total(track())
-        print(f'Distance along the track: {total:,.2f} km '
-              f'(straight lines between readings; gaps over '
-              f'{args.max_gap_minutes:g} minutes and impossible jumps left out)')
+        total = DistanceService.total_of_segments(segments())
+        print(f'Distance along the track: {total:,.2f} km ({how}; gaps over '
+              f'{args.max_gap_minutes:g} minutes left out)')
 
     if args.heatmap:
         try:
@@ -164,11 +179,35 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             print('No points to draw, so no heatmap was written.')
 
+    if args.serve:
+        serve(args, zone)
+        return 0
+
     if not any([args.paths, args.coverage, args.coverage_csv,
                 args.gpx, args.distance, args.heatmap]):
         print('Nothing to do. Give one or more files to import, or use '
-              '--coverage, --gpx, --distance or --heatmap.')
+              '--serve, --coverage, --gpx, --distance or --heatmap.')
     return 0
+
+
+def serve(args: argparse.Namespace, zone) -> None:
+    from services.web_app import build_server
+    viewer_repo = TimelineRepository(DatabaseConnection(args.db, read_only=True))
+    try:
+        server = build_server(viewer_repo, args.port, zone, args.tz,
+                              args.max_accuracy, args.max_gap_minutes)
+    except OSError as error:
+        raise SystemExit(f'Could not start the map on port {args.port}: {error.strerror}. '
+                         'Try another with --port.')
+    print(f'Map ready: open {server.url} in your browser. Press Ctrl+C to stop.')
+    print('Only this computer can open it. Map pictures come from OpenStreetMap, '
+          'which sees the areas you look at.', flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print()
+    finally:
+        server.server_close()
 
 
 if __name__ == '__main__':

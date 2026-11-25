@@ -330,18 +330,70 @@ class TimelineRepository:
 
             positions = (
                 row for row in conn.execute(
-                    f'SELECT t_ms, latitude, longitude FROM positions'
+                    f'SELECT t_ms, latitude, longitude, accuracy_m FROM positions'
                     f'{where(position_clauses)} ORDER BY t_ms', position_params)
                 if position_days.get(row[0] // DAY_MS, 0) >= path_days.get(row[0] // DAY_MS, 0)
             )
             paths = (
                 row for row in conn.execute(
-                    f'SELECT t_ms, latitude, longitude FROM path_points'
+                    f'SELECT t_ms, latitude, longitude, NULL FROM path_points'
                     f'{where(clauses)} ORDER BY t_ms', params)
                 if path_days.get(row[0] // DAY_MS, 0) > position_days.get(row[0] // DAY_MS, 0)
             )
-            for row in heapq.merge(positions, paths):
+            for row in heapq.merge(positions, paths, key=lambda row: row[0]):
                 yield Location(*row)
+
+    def data_version(self) -> Tuple[int, int]:
+        """Changes whenever a file is imported, so cached results can be refreshed."""
+        with self._db.get_connection() as conn:
+            return tuple(conn.execute(
+                'SELECT COUNT(*), COALESCE(MAX(id), 0) FROM source_files').fetchone())
+
+    def readings_between(
+        self, from_ms: int, to_ms: int, max_accuracy_m: Optional[float], limit: int
+    ) -> List[Tuple[int, float, float, Optional[float]]]:
+        """Individual readings (not route points) for drawing as dots."""
+        sql = ('SELECT t_ms, latitude, longitude, accuracy_m FROM positions '
+               'WHERE t_ms >= ? AND t_ms < ?')
+        params: List[Any] = [from_ms, to_ms]
+        if max_accuracy_m is not None:
+            sql += ' AND (accuracy_m IS NULL OR accuracy_m <= ?)'
+            params.append(max_accuracy_m)
+        sql += ' ORDER BY t_ms LIMIT ?'
+        params.append(limit)
+        with self._db.get_connection() as conn:
+            return conn.execute(sql, params).fetchall()
+
+    def visits_between(self, from_ms: int, to_ms: int, limit: int) -> List[tuple]:
+        with self._db.get_connection() as conn:
+            return conn.execute(
+                'SELECT start_ms, end_ms, latitude, longitude, name, address, semantic_type, '
+                'probability FROM visits WHERE latitude IS NOT NULL '
+                'AND end_ms >= ? AND start_ms < ? ORDER BY start_ms LIMIT ?',
+                (from_ms, to_ms, limit),
+            ).fetchall()
+
+    def heat_cells(
+        self, from_ms: int, to_ms: int, decimals: int, max_accuracy_m: Optional[float]
+    ) -> List[Tuple[float, float, int]]:
+        """Readings and route points counted in small squares, done inside SQLite."""
+        accuracy = ''
+        params: List[Any] = [decimals, decimals, from_ms, to_ms]
+        if max_accuracy_m is not None:
+            accuracy = ' AND (accuracy_m IS NULL OR accuracy_m <= ?)'
+            params.append(max_accuracy_m)
+        params += [decimals, decimals, from_ms, to_ms]
+        with self._db.get_connection() as conn:
+            return conn.execute(
+                'SELECT lat, lng, SUM(n) FROM ('
+                '  SELECT ROUND(latitude, ?) AS lat, ROUND(longitude, ?) AS lng, COUNT(*) AS n'
+                f'  FROM positions WHERE t_ms >= ? AND t_ms < ?{accuracy} GROUP BY 1, 2'
+                '  UNION ALL'
+                '  SELECT ROUND(latitude, ?), ROUND(longitude, ?), COUNT(*)'
+                '  FROM path_points WHERE t_ms >= ? AND t_ms < ? GROUP BY 1, 2'
+                ') GROUP BY lat, lng',
+                params,
+            ).fetchall()
 
     def visit_points(
         self, from_ms: Optional[int] = None, to_ms: Optional[int] = None

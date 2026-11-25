@@ -69,6 +69,11 @@ class CoverageReport:
     def days_with_data(self) -> int:
         return len(self._days)
 
+    @property
+    def days(self) -> List[date]:
+        """Every local day that has any record, in order."""
+        return list(self._days)
+
     _days: List[date] = field(default_factory=list, repr=False)
 
 
