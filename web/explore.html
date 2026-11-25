@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Timeline: explore</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
+        crossorigin="">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header id="bar">
+    <nav class="group nav"><a href="/">Day timeline</a><strong>Explore</strong></nav>
+    <div class="group">
+      <button id="prev" type="button" title="Previous day with data">&#9664;</button>
+      <label>From <input type="date" id="from"></label>
+      <label>To <input type="date" id="to"></label>
+      <button id="next" type="button" title="Next day with data">&#9654;</button>
+      <select id="span" title="Widen the view around the From date">
+        <option value="">Show&hellip;</option>
+        <option value="day">that day</option>
+        <option value="week">that week</option>
+        <option value="month">that month</option>
+        <option value="year">that year</option>
+        <option value="all">everything</option>
+      </select>
+    </div>
+    <div class="group toggles">
+      <label><input type="checkbox" id="lines" checked> Lines</label>
+      <label title="Remove jumps, collapse time standing still, smooth the wobble">
+        <input type="checkbox" id="clean" checked> Clean up</label>
+      <label><input type="checkbox" id="readings"> Readings</label>
+      <label><input type="checkbox" id="visits" checked> Visits</label>
+      <label><input type="checkbox" id="heat"> Heatmap</label>
+    </div>
+    <div id="status" role="status" aria-live="polite">Loading&hellip;</div>
+  </header>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
+          crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+          integrity="sha384-mFKkGiGvT5vo1fEyGCD3hshDdKmW3wzXW/x+fWriYJArD0R3gawT6lMvLboM22c0"
+          crossorigin=""></script>
+  <script src="/explore.js"></script>
+</body>
+</html>

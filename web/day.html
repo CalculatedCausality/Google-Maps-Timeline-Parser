@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Timeline: day</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
+        crossorigin="">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="day-page">
+  <aside id="panel">
+    <nav class="nav"><strong>Day timeline</strong><a href="/explore">Explore</a></nav>
+    <div class="day-picker">
+      <button id="prev" type="button" title="Previous day with data">&#9664;</button>
+      <input type="date" id="date" aria-label="Day">
+      <button id="next" type="button" title="Next day with data">&#9654;</button>
+    </div>
+    <div id="day-title" class="day-title"></div>
+    <div id="summary" class="summary"></div>
+    <div class="day-actions">
+      <button id="snap-all" type="button">Snap all journeys to roads</button>
+      <button id="reset" type="button">Undo my edits</button>
+    </div>
+    <div id="note" class="note" role="status" aria-live="polite"></div>
+    <ol id="items" class="items"></ol>
+  </aside>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
+          crossorigin=""></script>
+  <script src="/day.js"></script>
+</body>
+</html>

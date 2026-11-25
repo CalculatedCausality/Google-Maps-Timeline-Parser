@@ -1,5 +1,6 @@
 import argparse
 import sys
+from pathlib import Path
 from datetime import timezone
 from typing import List, Optional
 
@@ -65,6 +66,12 @@ def build_arguments() -> argparse.ArgumentParser:
                         help='Open a map of the database in your browser (no files written)')
     parser.add_argument('--port', type=int, default=8765,
                         help='Port for --serve (default: 8765)')
+    parser.add_argument('--edits', metavar='PATH',
+                        help='File holding your corrections (default: beside the database, '
+                             'named <database>-edits.sqlite)')
+    parser.add_argument('--timeline-gpx', metavar='PATH',
+                        help='Write your corrected day timeline as GPX: journeys as tracks '
+                             '(snapped where you snapped them), stops as waypoints')
     return parser
 
 
@@ -179,15 +186,41 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             print('No points to draw, so no heatmap was written.')
 
+    if args.timeline_gpx:
+        days, journeys, stops = export_timeline_gpx(args, repo, zone, from_ms, to_ms)
+        print(f'Timeline GPX exported  →  {args.timeline_gpx}  ({days:,} days, '
+              f'{journeys:,} journeys, {stops:,} stops)')
+
     if args.serve:
         serve(args, zone)
         return 0
 
-    if not any([args.paths, args.coverage, args.coverage_csv,
+    if not any([args.paths, args.coverage, args.coverage_csv, args.timeline_gpx,
                 args.gpx, args.distance, args.heatmap]):
         print('Nothing to do. Give one or more files to import, or use '
               '--serve, --coverage, --gpx, --distance or --heatmap.')
     return 0
+
+
+def export_timeline_gpx(args, repo, zone, from_ms, to_ms):
+    from repositories.edits_repository import EditsRepository
+    from services.coverage_service import CoverageService
+    from services.day_timeline import DayTimelineService
+    edits = EditsRepository(args.edits or side_file(args, 'edits'))
+    timeline = DayTimelineService(repo, edits, zone, args.max_accuracy)
+    days = CoverageService(repo, zone, args.tz).build().days
+    built = []
+    for day in days:
+        start, end = timeline.day_bounds(day)
+        if (from_ms is not None and end <= from_ms) or (to_ms is not None and start >= to_ms):
+            continue
+        built.append(timeline.build(day))
+    return ExportService().export_timeline_gpx(built, args.timeline_gpx)
+
+
+def side_file(args: argparse.Namespace, suffix: str) -> str:
+    base = Path(args.db)
+    return str(base.with_name(f'{base.stem}-{suffix}.sqlite'))
 
 
 def serve(args: argparse.Namespace, zone) -> None:
@@ -195,13 +228,16 @@ def serve(args: argparse.Namespace, zone) -> None:
     viewer_repo = TimelineRepository(DatabaseConnection(args.db, read_only=True))
     try:
         server = build_server(viewer_repo, args.port, zone, args.tz,
-                              args.max_accuracy, args.max_gap_minutes)
+                              args.max_accuracy, args.max_gap_minutes,
+                              edits_path=args.edits or side_file(args, 'edits'),
+                              roads_path=side_file(args, 'roads'))
     except OSError as error:
         raise SystemExit(f'Could not start the map on port {args.port}: {error.strerror}. '
                          'Try another with --port.')
     print(f'Map ready: open {server.url} in your browser. Press Ctrl+C to stop.')
     print('Only this computer can open it. Map pictures come from OpenStreetMap, '
-          'which sees the areas you look at.', flush=True)
+          'which sees the areas you look at; snapping downloads the roads of those areas '
+          'from OpenStreetMap too, never your track.', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

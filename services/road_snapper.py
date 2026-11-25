@@ -1,7 +1,7 @@
 """Snaps a cleaned track onto the roads, paths and railways it most likely used.
 
 Road layouts come from OpenStreetMap through the Overpass service. Only the
-outline of each 5 km square of map is sent, never your track or its times,
+outline of each 2.5 km square of map is sent, never your track or its times,
 and every square is kept in a local cache file so it is downloaded once.
 
 Matching follows Newson and Krumm (2009), "Hidden Markov map matching
@@ -32,7 +32,7 @@ from models.location import Location
 
 from .track_cleaner import EARTH_RADIUS_M, distance_m
 
-TILE_DEG = 0.05                       # one download covers about 5.5 by 4.5 km
+TILE_DEG = 0.025                      # one download covers about 2.8 by 2.3 km
 GRID_DEG = 0.001                      # spatial index cell, about 100 m
 METRES_PER_DEG = 111_195.0
 OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
@@ -106,6 +106,7 @@ class OverpassFetcher:
         self._min_interval_s = min_interval_s
         self._last_request = 0.0
         self._lock = threading.Lock()
+        self.retry_waits_s = (0, 10, 30)
 
     @staticmethod
     def query(south: float, west: float, north: float, east: float) -> str:
@@ -119,25 +120,39 @@ class OverpassFetcher:
 
     def __call__(self, tile: Tile) -> List[Way]:
         body = urllib.parse.urlencode({'data': self.query(*tile_bounds(tile))}).encode()
-        request = urllib.request.Request(
-            self._url, data=body,
-            headers={'User-Agent': USER_AGENT,
-                     'Content-Type': 'application/x-www-form-urlencoded'})
         with self._lock:  # one request at a time, politely spaced
-            wait = self._last_request + self._min_interval_s - time.monotonic()
-            if wait > 0:
-                time.sleep(wait)
-            try:
-                with urllib.request.urlopen(request, timeout=self._timeout_s) as response:
-                    payload = response.read()
-            except (urllib.error.URLError, OSError) as error:
-                raise RoadDownloadError(str(error)) from error
-            finally:
-                self._last_request = time.monotonic()
+            payload = self._request(body)
         try:
             return parse_overpass(json.loads(payload))
         except (ValueError, KeyError, TypeError) as error:
             raise RoadDownloadError(f'unreadable answer: {error}') from error
+
+    def _request(self, body: bytes) -> bytes:
+        """POST the query; when the service is busy or briefly down, wait and try again."""
+        reason = ''
+        for wait_s in self.retry_waits_s:
+            if wait_s:
+                time.sleep(wait_s)
+            pause = self._last_request + self._min_interval_s - time.monotonic()
+            if pause > 0:
+                time.sleep(pause)
+            request = urllib.request.Request(
+                self._url, data=body,
+                headers={'User-Agent': USER_AGENT,
+                         'Content-Type': 'application/x-www-form-urlencoded'})
+            try:
+                with urllib.request.urlopen(request, timeout=self._timeout_s) as response:
+                    return response.read()
+            except urllib.error.HTTPError as error:
+                reason = f'the service answered {error.code} {error.reason}'
+                if error.code not in (429, 502, 503, 504):
+                    break
+            except (urllib.error.URLError, OSError) as error:
+                reason = f'no connection ({getattr(error, "reason", error)})'
+                break
+            finally:
+                self._last_request = time.monotonic()
+        raise RoadDownloadError(reason)
 
 
 def parse_overpass(data: dict) -> List[Way]:
@@ -327,6 +342,7 @@ class SnapResult:
     unsnapped_km: float = 0.0
     missing_tiles: int = 0
     failed_tiles: int = 0
+    failure: str = ''
 
 
 class RoadSnapper:
@@ -355,9 +371,10 @@ class RoadSnapper:
                     max_new_tiles -= 1
                     try:
                         cached = self._fetch(tile)
-                    except RoadDownloadError:
+                    except RoadDownloadError as error:
                         unavailable.add(tile)
                         result.failed_tiles += 1
+                        result.failure = str(error)
                         continue
                     self._cache.put(tile, cached)
                 ways.extend(cached)

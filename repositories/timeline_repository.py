@@ -373,6 +373,21 @@ class TimelineRepository:
                 (from_ms, to_ms, limit),
             ).fetchall()
 
+    def activities_between(self, from_ms: int, to_ms: int) -> List[tuple]:
+        with self._db.get_connection() as conn:
+            return conn.execute(
+                'SELECT start_ms, end_ms, activity_type, distance_m, start_latitude, '
+                'start_longitude, end_latitude, end_longitude FROM activities '
+                'WHERE end_ms > ? AND start_ms < ? ORDER BY start_ms',
+                (from_ms, to_ms),
+            ).fetchall()
+
+    def frequent_places(self) -> List[Tuple[Optional[str], float, float]]:
+        with self._db.get_connection() as conn:
+            return conn.execute(
+                'SELECT label, latitude, longitude FROM frequent_places '
+                'WHERE latitude IS NOT NULL AND label IS NOT NULL').fetchall()
+
     def heat_cells(
         self, from_ms: int, to_ms: int, decimals: int, max_accuracy_m: Optional[float]
     ) -> List[Tuple[float, float, int]]:

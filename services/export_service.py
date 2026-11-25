@@ -1,6 +1,7 @@
 from collections import Counter
 from math import log
 from typing import Iterable, List, Tuple
+from xml.sax.saxutils import escape
 
 from models.location import Location
 
@@ -39,6 +40,42 @@ class ExportService:
                 f.write('    </trkseg>\n')
             f.write('  </trk>\n</gpx>\n')
         return segment_count, point_count
+
+    def export_timeline_gpx(self, days: Iterable[dict], output_path: str) -> Tuple[int, int, int]:
+        """Write corrected day timelines: a track per journey, a waypoint per stop.
+
+        Hidden stops and journeys are left out. Returns (days, journeys, stops).
+        """
+        day_count = journeys = stops = 0
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            f.write('<gpx version="1.1" creator="TimelineProcessor" '
+                    'xmlns="http://www.topografix.com/GPX/1/1">\n')
+            tracks: List[str] = []
+            for day in days:
+                day_count += 1
+                for item in day['items']:
+                    if item['hidden']:
+                        continue
+                    if item['kind'] == 'stop' and item['lat'] is not None:
+                        stops += 1
+                        f.write(f'  <wpt lat="{item["lat"]:.7f}" lon="{item["lng"]:.7f}">'
+                                f'<time>{iso_utc(item["start"])}</time>'
+                                f'<name>{escape(item["name"])}</name>'
+                                f'<desc>{escape(day["date"] + " " + item["start_text"] + " to " + item["end_text"])}</desc>'
+                                '</wpt>\n')
+                    elif item['kind'] == 'move' and len(item['line']) > 1:
+                        journeys += 1
+                        points = ''.join(
+                            f'<trkpt lat="{lat:.7f}" lon="{lng:.7f}"><time>{iso_utc(t)}</time></trkpt>'
+                            for (lat, lng), t in zip(item['line'], item['times']))
+                        name = f'{day["date"]} {item["start_text"]} {item["mode_label"]}'
+                        tracks.append(f'  <trk><name>{escape(name)}</name>'
+                                      f'<type>{escape(item["mode"])}</type>'
+                                      f'<trkseg>{points}</trkseg></trk>\n')
+            f.writelines(tracks)          # GPX puts waypoints before tracks
+            f.write('</gpx>\n')
+        return day_count, journeys, stops
 
     def heatmap_cells(
         self,

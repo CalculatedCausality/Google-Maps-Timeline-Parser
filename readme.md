@@ -4,7 +4,9 @@ A Python script that reads your Google Maps Timeline exports into one SQLite dat
 
 - Reads the files a phone exports today **and** the older Google Takeout files, and works out which is which from their contents.
 - Prints a month-by-month coverage report: how much data each month really holds, and where the gaps are.
-- Opens a map in your browser, drawn straight from the database: pick any day, week, month or year and see your lines, visits, individual readings or a heatmap. No files are generated.
+- Opens your timeline in the browser, drawn straight from the database, with no files generated:
+  - **Day timeline**: one day at a time as stops and journeys, much like Google's old web Timeline. Rename places, fix travel modes, hide mistakes and snap journeys onto real roads, one section at a time. Your corrections are kept in a separate file and never change the imported history.
+  - **Explore**: any day, week, month or year as lines, visits, individual readings or a heatmap.
 - Turns the scatter of readings into lines that follow where you went (see "From dots to lines" below).
 - Creates a heatmap of the places you've been to.
 - Creates a GPX track, cut wherever the data has a gap, for apps such as Fog of World.
@@ -32,8 +34,11 @@ Each `PATH` can be a JSON file, a Takeout ZIP archive, or a folder (every JSON f
 # Import everything in a folder and see what it covers, counting days in your time zone
 python main.py ~/timeline-exports --coverage --tz Australia/Brisbane
 
-# Browse it on a map (then open http://127.0.0.1:8765/)
+# Browse and correct it in your browser (then open http://127.0.0.1:8765/)
 python main.py --serve --tz Australia/Brisbane
+
+# Your corrected timeline as GPX: journeys as tracks, stops as named waypoints
+python main.py --timeline-gpx my-timeline.gpx --tz Australia/Brisbane
 
 # Report again later without importing anything
 python main.py --coverage --coverage-csv coverage.csv
@@ -55,7 +60,9 @@ python main.py --gpx --heatmap --from 2019-01-01 --to 2020-01-01
 | `--max-gap-minutes N` | Cut the track where readings are further apart than this (default 30) |
 | `--max-accuracy METRES` | Leave out readings less accurate than this (default 200) |
 | `--raw` | GPX and distance use the readings as recorded, without the clean-up |
-| `--serve`, `--port N` | Open the map viewer on this computer (default port 8765) |
+| `--serve`, `--port N` | Open the timeline in your browser, on this computer only (default port 8765) |
+| `--edits PATH` | File holding your corrections (default `<database>-edits.sqlite` beside the database) |
+| `--timeline-gpx PATH` | Write your corrected day timeline as GPX (use `--from` and `--to` to limit it) |
 
 Importing is safe to repeat. A file already imported is recognised by its fingerprint and skipped, and a newer export that repeats older history adds only the new records.
 
@@ -70,18 +77,41 @@ pip install -r requirements.txt
 - `folium` is needed for the heatmap.
 - `ijson` reads a large `Records.json` piece by piece. Without it the whole file is loaded into memory, which is slow for files of hundreds of megabytes.
 
-## The map viewer
+## The timeline in your browser
 
-`python main.py --serve` starts a small web server on your own computer and prints the address to open. It reads the database directly, so there is nothing to regenerate after an import: reload the page instead.
+`python main.py --serve` starts a small web server on your own computer and prints the address to open. It reads the database directly, so after an import you only need to reload the page.
 
-- **◀ ▶** (or the arrow keys) jump to the previous or next day that has data. **Show…** widens the view to the week, month or year around the From date, or everything.
-- **Lines** draws your movements, one colour per day. Click a line for its times and length.
-- **Clean up** switches between the cleaned line and the readings as recorded.
+### Day timeline (the first page)
+
+One day at a time, in the spirit of Google's old web Timeline: a list of **stops** (numbered on the map) and the **journeys** between them (coloured by travel mode).
+
+- **◀ ▶** (or the arrow keys) go to the previous or next day that has data; the date box jumps anywhere.
+- Where Google recorded visits and movements for the day, those are used, with Google's place names and travel modes. Where it only kept location readings (common in older years), stops are worked out from places you stayed at least ten minutes, and travel modes are guessed from speed.
+- **Rename** a stop. Tick *Use this name for every visit within 75 m* to name the place everywhere, on every day.
+- **Change a journey's travel mode** from its drop-down.
+- **Snap to roads** fits one journey onto real roads, paths and railways. **Snap all journeys to roads** does the whole day, one journey after another. **Undo snap** puts the line back.
+- **Hide** leaves a wrong stop or journey out of the day, and of the GPX export; **Show** brings it back.
+- **Undo my edits** resets the day to what was recorded. Names given to places everywhere are kept.
+
+Corrections are saved in a separate file, `<database>-edits.sqlite`, beside the database. The imported history is never changed, so importing new exports later keeps your corrections. A correction is tied to the start time of its stop or journey; if a new import changes that start time, the old correction stops applying.
+
+### Snapping to roads
+
+Snapping downloads the road layout around a journey from OpenStreetMap's free [Overpass](https://overpass-api.de/) service and works out the most likely route through it on your computer (a hidden Markov model, as in Newson and Krumm 2009). Only the outline of each 2.5 km square of map is sent, never your track, its times or anything else about you. Each square is kept in `<database>-roads.sqlite` and downloaded once. The first snap in a busy city area can take up to a minute while its roads download; after that it is quick.
+
+Parts of a journey with no road or path nearby (a park, open water) keep their cleaned line, and flights are never snapped. The free service allows about 10,000 requests a day, which ordinary use never approaches. When it is busy the snap is retried twice, then you are asked to try again a minute later.
+
+### Explore
+
+- **◀ ▶** jump between days with data. **Show…** widens the view to the week, month or year around the From date, or everything.
+- **Lines** draws your movements, one colour per day; **Clean up** switches between cleaned lines and the readings as recorded.
 - **Readings** shows every individual reading as a dot; **Visits** shows the places Google recorded you stopping at; **Heatmap** shows where you spend time.
 
 Long periods are drawn with fewer points so they stay quick: a year of a million-reading history takes about a second and a half on a laptop, and is remembered after that.
 
-The server only answers this computer, opens the database read-only, and refuses requests that name any other host, so other web pages cannot read your history through it. Stop it with Ctrl+C.
+### Safety
+
+The server only answers this computer, opens the imported history read-only, and refuses requests that name any other host. Corrections are only accepted from the timeline page itself, so other web pages cannot read or change your history through it. Stop it with Ctrl+C.
 
 ## From dots to lines
 
@@ -93,7 +123,7 @@ Phone readings wobble: standing still produces a cloud of points tens of metres 
 4. **Smooths the wobble** with a Kalman filter and a backward pass. It trusts each reading according to its accuracy and allows sharper turns at higher speeds, so walks are straightened out without cutting the corners off a drive.
 5. **Simplifies**, dropping points that add no shape (5 metres for a single day, more for longer periods).
 
-It does not snap lines to roads. That needs a road map and a routing engine (such as OSRM or Valhalla) running on your own computer, because sending your history to an online routing service would hand it over.
+This clean-up does not snap lines to roads; the day timeline does that, one journey at a time (see "Snapping to roads" above).
 
 On made-up test data, a 2 km walk read every 15 seconds with about 10 metres of wobble measures more than 2.4 km raw and 1.9 to 2.2 km cleaned, drawn with a quarter of the points.
 
@@ -110,6 +140,8 @@ Different kinds of record stay in different tables, because they are different k
 | `frequent_places` | Places the phone has labelled, such as home and work | Phone export |
 | `source_files` | Each imported file, its fingerprint, and what was not kept and why | |
 
+Two more files sit beside the database: `<database>-edits.sqlite` holds your corrections (`item_edits` per stop or journey, and `named_places`), and `<database>-roads.sqlite` holds the downloaded road layouts.
+
 A database made by an earlier version of this script has a single `timeline` table. It is left untouched and no longer used; import your files again to fill the new tables.
 
 ## How to read the results
@@ -123,7 +155,7 @@ A database made by an earlier version of this script has a single `timeline` tab
 
 ## Privacy
 
-Your location history shows where you live, work and sleep. This script works entirely on your own computer and sends no location data anywhere. The map viewer and the heatmap file load map pictures from OpenStreetMap and the map library from unpkg.com, so those services see which areas you look at (not your history). The exports, the database and everything the script writes are listed in `.gitignore`; keep them out of any repository or shared folder.
+Your location history shows where you live, work and sleep. This script works entirely on your own computer and never sends your history anywhere. The pages and the heatmap file load map pictures from OpenStreetMap and the map library from unpkg.com, and snapping downloads road layouts from Overpass. Those services see which areas you look at or snap, but not your track, its times or which days you looked at. The exports, the database and everything the script writes are listed in `.gitignore`; keep them out of any repository or shared folder.
 
 ## Tests
 

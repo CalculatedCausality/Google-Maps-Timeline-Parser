@@ -1,10 +1,12 @@
 # Personal location data and everything made from it: never commit these.
 *.db
 *.db-journal
+*.sqlite
+*.sqlite-journal
 *.gpx
 *.zip
-*.csv
-*.html
+/*.csv
+/*.html
 /*.json
 Takeout/
 Semantic Location History/

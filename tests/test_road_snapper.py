@@ -188,3 +188,61 @@ def test_overpass_query_asks_only_for_a_box():
     query = OverpassFetcher.query(-33.9, 151.2, -33.85, 151.25)
     assert '(-33.9,151.2,-33.85,151.25)' in query
     assert 'highway' in query and 'railway' in query and 'out geom' in query
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self):
+        return self.payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def http_error(code):
+    import urllib.error
+    return urllib.error.HTTPError('https://example.invalid', code, 'Busy', {}, None)
+
+
+def test_busy_service_is_retried_then_succeeds(monkeypatch):
+    import json
+    import urllib.request
+    answers = [http_error(429), http_error(504),
+               FakeResponse(json.dumps({'elements': []}).encode())]
+    sent = []
+
+    def fake_urlopen(request, timeout):
+        sent.append(request)
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(urllib.request, 'urlopen', fake_urlopen)
+    fetcher = OverpassFetcher(min_interval_s=0)
+    fetcher.retry_waits_s = (0, 0, 0)
+    assert fetcher((0, 0)) == []
+    assert len(sent) == 3
+    assert sent[0].get_header('User-agent') == 'timeline-road-snap/1.0'
+    assert b'data=' in sent[0].data
+
+
+def test_refused_request_is_not_retried_and_reason_is_kept(monkeypatch, cache):
+    import urllib.request
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append(1)
+        raise http_error(400)
+
+    monkeypatch.setattr(urllib.request, 'urlopen', fake_urlopen)
+    fetcher = OverpassFetcher(min_interval_s=0)
+    fetcher.retry_waits_s = (0, 0, 0)
+    result = RoadSnapper(cache, fetcher).snap([noisy_l_walk()], max_new_tiles=5)
+    assert len(calls) == result.failed_tiles >= 1      # each square tried once, no retry
+    assert '400' in result.failure
