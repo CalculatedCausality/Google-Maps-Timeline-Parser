@@ -24,7 +24,7 @@ from repositories.edits_repository import EditsRepository
 from repositories.timeline_repository import TimelineRepository
 
 from .coverage_service import CoverageService
-from .day_timeline import MODES, DayTimelineService
+from .day_timeline import MODES, DayTimelineService, ShapeError
 from .road_snapper import (MODE_PROFILES, UNSNAPPABLE_MODES, OverpassFetcher, RoadCache,
                            RoadSnapper)
 from .track_cleaner import CleanerSettings, TrackCleaner, segment_length_km
@@ -320,6 +320,8 @@ class MapData:
             self._edits.set_mode(key, item_id, mode)
         elif action == 'unsnap':
             self._edits.set_geometry(key, item_id, None)
+        elif action in ('times', 'split', 'add_stop', 'merge_next', 'remove_stop'):
+            note = self._reshape(day, item_id, action, body)
         elif action == 'snap':
             if item['kind'] != 'move':
                 raise BadRequest('Only journeys can be snapped to roads')
@@ -329,6 +331,35 @@ class MapData:
         else:
             raise BadRequest('Unknown action')
         return {'day': self._day_payload(day), 'note': note}
+
+    def _local_time(self, body: dict, name: str) -> int:
+        try:
+            return self._timeline.parse_local(body.get(name))
+        except (TypeError, ValueError):
+            raise BadRequest(f'"{name}" must be a date and time like 2019-03-31T14:05')
+
+    def _reshape(self, day: date, item_id: str, action: str, body: dict) -> str:
+        timeline = self._timeline
+        try:
+            if action == 'times':
+                timeline.set_times(day, item_id, self._local_time(body, 'start'),
+                                   self._local_time(body, 'end'))
+                return 'Times changed. Neighbouring places and journeys were adjusted to fit.'
+            if action == 'split':
+                timeline.split_move(day, item_id, self._local_time(body, 'at'))
+                return 'Journey split in two. Each part can now have its own travel mode.'
+            if action == 'add_stop':
+                name = str(body.get('name') or '').strip()[:MAX_NAME_LENGTH] or None
+                timeline.add_stop(day, item_id, self._local_time(body, 'start'),
+                                  self._local_time(body, 'end'), name)
+                return 'Stop added; the journey either side of it was split.'
+            if action == 'merge_next':
+                timeline.merge_next(day, item_id)
+                return 'Merged.'
+            timeline.remove_stop(day, item_id)
+            return 'Place removed; the journeys either side were joined.'
+        except ShapeError as error:
+            raise BadRequest(str(error))
 
     def _snap(self, day: date, key: str, item_id: str, profile: str) -> str:
         line = self._timeline.move_locations(day, item_id)

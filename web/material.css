@@ -433,6 +433,18 @@ dialog.md-dialog h2 {
   margin-top: 8px;
 }
 
+.text-field + .text-field {
+  margin-top: 20px;
+}
+
+#form-help {
+  margin: -8px 0 16px;
+}
+
+#form-help:empty {
+  display: none;
+}
+
 .text-field input {
   width: 100%;
   height: 56px;

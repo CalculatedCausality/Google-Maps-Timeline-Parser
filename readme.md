@@ -90,10 +90,17 @@ One day at a time, in the spirit of Google's old web Timeline: a list of **stops
 - **Rename** a stop. Tick *Use this name for every visit within 75 m* to name the place everywhere, on every day.
 - **Change a journey's travel mode** from its drop-down.
 - **Snap to roads** fits one journey onto real roads, paths and railways. **Snap all journeys to roads** does the whole day, one journey after another. **Undo snap** puts the line back.
+- **Edit times** of a place or journey. The places and journeys next to it move to fit.
+- **Split into two journeys**, for example when you walked and then took a bus, so each part can have its own travel mode.
+- **Add a stop during a journey**, for somewhere Google missed. The stop is placed where your readings were at that time.
+- **Merge with the next place** joins two visits to the same place, and **Merge with the next journey** joins two journeys and drops what was between them.
+- **Remove and join the journeys** takes out a place that was not a real stop and joins the journeys either side.
 - **Hide** leaves a wrong stop or journey out of the day, and of the GPX export; **Show** brings it back.
-- **Undo my edits** resets the day to what was recorded. Names given to places everywhere are kept.
+- **Undo edits** resets the day to what was recorded. Names given to places everywhere are kept.
 
-Corrections are saved in a separate file, `<database>-edits.sqlite`, beside the database. The imported history is never changed, so importing new exports later keeps your corrections. A correction is tied to the start time of its stop or journey; if a new import changes that start time, the old correction stops applying.
+Every action is in the ⋮ menu on each row; clicking a journey's travel mode changes it directly.
+
+Corrections are saved in a separate file, `<database>-edits.sqlite`, beside the database. The imported history is never changed, so importing new exports later keeps your corrections. Renaming, travel modes, hiding and snapping are tied to the start time of their place or journey; if a new import changes that start time, the old correction stops applying. Once you change a day's shape (times, splits, stops, merges), that day's whole list of places and journeys is saved as your own version of the day and shown from then on; journeys' lines are still redrawn from your readings for their new times. A journey whose times change loses its snapping, so snap it again.
 
 ### Snapping to roads
 
@@ -142,7 +149,7 @@ Different kinds of record stay in different tables, because they are different k
 | `frequent_places` | Places the phone has labelled, such as home and work | Phone export |
 | `source_files` | Each imported file, its fingerprint, and what was not kept and why | |
 
-Two more files sit beside the database: `<database>-edits.sqlite` holds your corrections (`item_edits` per stop or journey, and `named_places`), and `<database>-roads.sqlite` holds the downloaded road layouts.
+Two more files sit beside the database: `<database>-edits.sqlite` holds your corrections (`item_edits` per stop or journey, `named_places`, and `day_plans` for days whose shape you changed), and `<database>-roads.sqlite` holds the downloaded road layouts.
 
 A database made by an earlier version of this script has a single `timeline` table. It is left untouched and no longer used; import your files again to fill the new tables.
 

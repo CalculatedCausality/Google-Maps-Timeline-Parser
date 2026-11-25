@@ -3,6 +3,11 @@
 The imported history is never changed. Each correction is stored here and
 applied on top of it whenever a day is shown or exported, so a day can
 always be reset to what Google recorded.
+
+Most corrections belong to one place or journey (`item_edits`). When you
+change a day's shape (edit times, split, merge) the whole day's list of
+places and journeys is saved as that day's plan (`day_plans`) and shown
+instead of the list worked out from the history.
 """
 import json
 import sqlite3
@@ -18,6 +23,11 @@ CREATE TABLE IF NOT EXISTS named_places (
     radius_m   REAL NOT NULL,
     name       TEXT NOT NULL,
     created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS day_plans (
+    day        TEXT PRIMARY KEY,
+    items      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS item_edits (
     day        TEXT NOT NULL,
@@ -73,7 +83,31 @@ class EditsRepository:
     def days_with_edits(self) -> List[str]:
         with self._connect() as conn:
             return [row[0] for row in conn.execute(
-                'SELECT DISTINCT day FROM item_edits ORDER BY day')]
+                'SELECT day FROM item_edits UNION SELECT day FROM day_plans ORDER BY 1')]
+
+    # ------------------------------------------------------------------
+    # Day plans: your own version of a day's places and journeys
+    # ------------------------------------------------------------------
+
+    def plan(self, day: str) -> Optional[List[dict]]:
+        with self._connect() as conn:
+            row = conn.execute('SELECT items FROM day_plans WHERE day = ?', (day,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def save_plan(self, day: str, items: List[dict]) -> None:
+        with self._connect() as conn:
+            conn.execute('INSERT OR REPLACE INTO day_plans (day, items, updated_at) '
+                         'VALUES (?, ?, ?)', (day, json.dumps(items, separators=(',', ':')), _now()))
+
+    def delete_items(self, day: str, item_ids: List[str]) -> None:
+        with self._connect() as conn:
+            conn.executemany('DELETE FROM item_edits WHERE day = ? AND item_id = ?',
+                             [(day, item_id) for item_id in item_ids])
+
+    def copy_mode(self, day: str, from_id: str, to_id: str) -> None:
+        edit = self.for_day(day).get(from_id)
+        if edit and edit.mode:
+            self.set_mode(day, to_id, edit.mode)
 
     def _update(self, day: str, item_id: str, column: str, value) -> None:
         with self._connect() as conn:
@@ -102,8 +136,11 @@ class EditsRepository:
         self._update(day, item_id, 'geometry', value)
 
     def reset_day(self, day: str) -> int:
+        """Remove every correction to the day, including its plan. Returns how many."""
         with self._connect() as conn:
-            return conn.execute('DELETE FROM item_edits WHERE day = ?', (day,)).rowcount
+            removed = conn.execute('DELETE FROM item_edits WHERE day = ?', (day,)).rowcount
+            removed += conn.execute('DELETE FROM day_plans WHERE day = ?', (day,)).rowcount
+            return removed
 
     # ------------------------------------------------------------------
     # Named places: a name you give a spot, used on every visit there

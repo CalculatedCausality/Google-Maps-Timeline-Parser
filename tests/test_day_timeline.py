@@ -176,3 +176,136 @@ def test_command_line_timeline_gpx_uses_the_edits_file(write_json, tmp_path, cap
     assert (tmp_path / 'cli-edits.sqlite').exists()
     assert main(['--db', db, '--timeline-gpx', output, '--from', '2030-01-01']) == 0
     assert '(0 days, 0 journeys, 0 stops)' in capsys.readouterr().out
+
+
+# ----------------------------------------------------------------------
+# Changing a day's shape: times, splitting, merging
+# ----------------------------------------------------------------------
+
+from services.day_timeline import ShapeError  # noqa: E402
+
+DAY = date(2020, 3, 1)
+
+
+@pytest.fixture
+def shaped(write_json, repo, timeline):
+    import_paths([write_json('Records.json', readings_day())], repo)
+    return timeline
+
+
+def local(timeline, text):
+    return timeline.parse_local(f'2020-03-01T{text}')
+
+
+def shape(day):
+    return [(i['kind'], i['start_text'], i['end_text']) for i in day['items']]
+
+
+def test_editing_a_place_s_times_moves_its_neighbours(shaped, edits):
+    first, walk, second = shaped.build(DAY)['items']
+    assert shape(shaped.build(DAY)) == [('stop', '12:00', '12:31'), ('move', '12:31', '12:40'),
+                                        ('stop', '12:40', '13:22')]
+    shaped.set_times(DAY, first['id'], local(shaped, '11:50'), local(shaped, '12:20'))
+    day = shaped.build(DAY)
+    assert shape(day) == [('stop', '11:50', '12:20'), ('move', '12:20', '12:40'),
+                          ('stop', '12:40', '13:22')]
+    assert day['summary']['source'] == 'plan' and day['summary']['edited']
+    # The journey's line is redrawn from readings for its new, longer window.
+    assert day['items'][1]['line'][0] == pytest.approx([first['lat'], first['lng']], abs=1e-5)
+    assert edits.plan('2020-03-01') is not None
+
+
+@pytest.mark.parametrize('start, end, message', [
+    ('12:40', '12:35', 'at least a minute after'),
+    ('12:32', '13:30', 'after the one below'),
+])
+def test_impossible_times_are_refused(shaped, start, end, message):
+    walk = shaped.build(DAY)['items'][1]
+    with pytest.raises(ShapeError, match=message):
+        shaped.set_times(DAY, walk['id'], local(shaped, start), local(shaped, end))
+
+
+def test_changing_times_forgets_a_snapped_line(shaped, edits):
+    walk = shaped.build(DAY)['items'][1]
+    edits.set_geometry('2020-03-01', walk['id'], [(walk['times'][0], *OPERA_HOUSE),
+                                                  (walk['times'][-1], *HARBOUR_BRIDGE)])
+    assert shaped.build(DAY)['items'][1]['snapped']
+    shaped.set_times(DAY, walk['id'], local(shaped, '12:32'), local(shaped, '12:40'))
+    assert not shaped.build(DAY)['items'][1]['snapped']
+
+
+def test_split_a_journey_keeps_its_mode_on_both_parts(shaped, edits):
+    walk = shaped.build(DAY)['items'][1]
+    edits.set_mode('2020-03-01', walk['id'], 'running')
+    shaped.split_move(DAY, walk['id'], local(shaped, '12:36'))
+    day = shaped.build(DAY)
+    assert shape(day) == [('stop', '12:00', '12:31'), ('move', '12:31', '12:36'),
+                          ('move', '12:36', '12:40'), ('stop', '12:40', '13:22')]
+    assert [i['mode'] for i in day['items'] if i['kind'] == 'move'] == ['running', 'running']
+    first, second = [i for i in day['items'] if i['kind'] == 'move']
+    assert first['id'] == walk['id'] and second['id'] != walk['id']
+    # The parts meet without doubling back: together they are no longer than the whole.
+    assert first['km'] + second['km'] <= walk['km'] + 0.05
+    assert first['line'][-1] == second['line'][0]
+    with pytest.raises(ShapeError, match='inside the journey'):
+        shaped.split_move(DAY, first['id'], local(shaped, '12:31'))
+
+
+def test_add_a_stop_during_a_journey(shaped, edits):
+    walk = shaped.build(DAY)['items'][1]
+    stop_id = shaped.add_stop(DAY, walk['id'], local(shaped, '12:35'), local(shaped, '12:37'),
+                              'Coffee cart')
+    day = shaped.build(DAY)
+    assert shape(day) == [('stop', '12:00', '12:31'), ('move', '12:31', '12:35'),
+                          ('stop', '12:35', '12:37'), ('move', '12:37', '12:40'),
+                          ('stop', '12:40', '13:22')]
+    added = day['items'][2]
+    assert added['id'] == stop_id and (added['name'], added['name_source']) == ('Coffee cart', 'you')
+    # Placed where the readings were at that time: part-way between the two ends.
+    assert min(OPERA_HOUSE[0], HARBOUR_BRIDGE[0]) < added['lat'] < max(OPERA_HOUSE[0], HARBOUR_BRIDGE[0])
+    with pytest.raises(ShapeError):
+        shaped.add_stop(DAY, added['id'], local(shaped, '12:35'), local(shaped, '12:36'), None)
+
+
+def test_merge_two_places_and_two_journeys(shaped, edits):
+    walk = shaped.build(DAY)['items'][1]
+    shaped.add_stop(DAY, walk['id'], local(shaped, '12:35'), local(shaped, '12:37'), 'Cart')
+    first_walk = shaped.build(DAY)['items'][1]
+    shaped.merge_next(DAY, first_walk['id'])
+    assert shape(shaped.build(DAY)) == [('stop', '12:00', '12:31'), ('move', '12:31', '12:40'),
+                                        ('stop', '12:40', '13:22')]
+    assert 'Cart' not in [i['name'] for i in shaped.build(DAY)['items'] if i['kind'] == 'stop']
+
+    first = shaped.build(DAY)['items'][0]
+    shaped.merge_next(DAY, first['id'])
+    assert shape(shaped.build(DAY)) == [('stop', '12:00', '13:22')]
+    with pytest.raises(ShapeError, match='no later place'):
+        shaped.merge_next(DAY, first['id'])
+
+
+def test_remove_a_place_and_join_the_journeys(shaped):
+    walk = shaped.build(DAY)['items'][1]
+    stop_id = shaped.add_stop(DAY, walk['id'], local(shaped, '12:35'), local(shaped, '12:37'), None)
+    shaped.remove_stop(DAY, stop_id)
+    assert shape(shaped.build(DAY)) == [('stop', '12:00', '12:31'), ('move', '12:31', '12:40'),
+                                        ('stop', '12:40', '13:22')]
+    # A place at the end of the day: the journey before it takes its time.
+    last = shaped.build(DAY)['items'][-1]
+    shaped.remove_stop(DAY, last['id'])
+    assert shape(shaped.build(DAY)) == [('stop', '12:00', '12:31'), ('move', '12:31', '13:22')]
+
+
+def test_reset_brings_back_the_recorded_day(shaped, edits):
+    first = shaped.build(DAY)['items'][0]
+    shaped.merge_next(DAY, first['id'])
+    assert len(shaped.build(DAY)['items']) == 1
+    assert edits.days_with_edits() == ['2020-03-01']
+    edits.reset_day('2020-03-01')
+    assert len(shaped.build(DAY)['items']) == 3
+    assert edits.plan('2020-03-01') is None and edits.days_with_edits() == []
+
+
+def test_local_times_are_read_in_the_chosen_zone(shaped):
+    assert shaped.parse_local('2020-03-01T12:00') == 1_583_024_400_000   # 01:00 UTC
+    with pytest.raises(ValueError):
+        shaped.parse_local('noon')

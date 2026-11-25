@@ -351,6 +351,11 @@ function placeRow(item, number) {
     if (item.name_source === 'you') {
       entries.push(['undo', 'Use original name', () => apply({ action: 'rename', item_id: item.id, name: '' })]);
     }
+    entries.push(['schedule', 'Edit times', () => editTimes(item)]);
+    if (laterOfKind(item)) {
+      entries.push(['merge', 'Merge with the next place', () => apply({ action: 'merge_next', item_id: item.id })]);
+    }
+    entries.push(['delete', 'Remove and join the journeys', () => apply({ action: 'remove_stop', item_id: item.id })]);
     entries.push(null, ['visibility_off', 'Hide this place', () => apply({ action: 'hide', item_id: item.id })]);
     return entries;
   }));
@@ -405,6 +410,12 @@ function travelRow(item) {
     entries.push(['edit', 'Change travel mode', () => showMenu(modeButton, modeEntries(item))]);
     if (item.mode_source === 'you') {
       entries.push(['undo', 'Use original mode', () => apply({ action: 'mode', item_id: item.id, mode: null })]);
+    }
+    entries.push(['schedule', 'Edit times', () => editTimes(item)]);
+    entries.push(['call_split', 'Split into two journeys', () => splitJourney(item)]);
+    entries.push(['add_location', 'Add a stop during this journey', () => addStop(item)]);
+    if (laterOfKind(item)) {
+      entries.push(['merge', 'Merge with the next journey', () => apply({ action: 'merge_next', item_id: item.id })]);
     }
     entries.push(null, ['visibility_off', 'Hide this journey', () => apply({ action: 'hide', item_id: item.id })]);
     return entries;
@@ -485,6 +496,114 @@ els.renameForm.addEventListener('submit', (event) => {
 $('rename-cancel').addEventListener('click', () => els.dialog.close());
 
 // ---------------------------------------------------------------------------
+// Times, splitting and adding stops
+// ---------------------------------------------------------------------------
+
+const form = {
+  dialog: $('form-dialog'),
+  element: $('form-form'),
+  title: $('form-title'),
+  help: $('form-help'),
+  fields: $('form-fields'),
+  save: $('form-save'),
+  submit: null,
+};
+
+function laterOfKind(item) {
+  const index = day.items.findIndex((i) => i.id === item.id);
+  return day.items.slice(index + 1).some((i) => i.kind === item.kind);
+}
+
+// Shift a 'YYYY-MM-DDTHH:MM' wall-clock time by some minutes, without time zones.
+function shiftLocal(text, minutes) {
+  const moment = new Date(`${text}:00Z`);
+  moment.setUTCMinutes(moment.getUTCMinutes() + minutes);
+  return moment.toISOString().slice(0, 16);
+}
+
+function minutesBetween(a, b) {
+  return Math.round((new Date(`${b}:00Z`) - new Date(`${a}:00Z`)) / 60000);
+}
+
+function openForm({ title, help, fields, saveText, onSubmit }) {
+  form.title.textContent = title;
+  form.help.textContent = help || '';
+  form.fields.replaceChildren();
+  const inputs = {};
+  for (const field of fields) {
+    const wrap = el('div', 'text-field');
+    const input = el('input');
+    input.id = `form-${field.name}`;
+    input.type = field.type;
+    input.value = field.value || '';
+    if (field.type === 'datetime-local') input.step = 60;
+    if (field.required) input.required = true;
+    if (field.maxLength) input.maxLength = field.maxLength;
+    const label = el('label', null, field.label);
+    label.htmlFor = input.id;
+    wrap.append(input, label);
+    form.fields.appendChild(wrap);
+    inputs[field.name] = input;
+  }
+  form.save.textContent = saveText || 'Save';
+  form.submit = () => {
+    const values = {};
+    for (const [name, input] of Object.entries(inputs)) values[name] = input.value;
+    onSubmit(values);
+  };
+  form.dialog.showModal();
+  const first = form.fields.querySelector('input');
+  if (first) first.focus();
+}
+
+form.element.addEventListener('submit', (event) => {
+  event.preventDefault();
+  form.dialog.close();
+  if (form.submit) form.submit();
+});
+$('form-cancel').addEventListener('click', () => form.dialog.close());
+
+function editTimes(item) {
+  openForm({
+    title: item.kind === 'stop' ? 'Edit times at this place' : 'Edit journey times',
+    help: 'The places and journeys next to it are moved to fit.',
+    fields: [
+      { name: 'start', label: item.kind === 'stop' ? 'Arrived' : 'Started', type: 'datetime-local', value: item.start_local, required: true },
+      { name: 'end', label: item.kind === 'stop' ? 'Left' : 'Ended', type: 'datetime-local', value: item.end_local, required: true },
+    ],
+    onSubmit: ({ start, end }) => apply({ action: 'times', item_id: item.id, start, end }),
+  });
+}
+
+function splitJourney(item) {
+  const middle = shiftLocal(item.start_local, Math.floor(minutesBetween(item.start_local, item.end_local) / 2));
+  openForm({
+    title: 'Split into two journeys',
+    help: 'For example, when you walked and then took a bus. Each part gets its own travel mode.',
+    fields: [{ name: 'at', label: 'Split at', type: 'datetime-local', value: middle, required: true }],
+    saveText: 'Split',
+    onSubmit: ({ at }) => apply({ action: 'split', item_id: item.id, at }),
+  });
+}
+
+function addStop(item) {
+  const length = minutesBetween(item.start_local, item.end_local);
+  const middle = Math.floor(length / 2);
+  const half = Math.max(1, Math.min(5, middle - 1));
+  openForm({
+    title: 'Add a stop',
+    help: 'Somewhere you stopped during this journey. Its place is worked out from your readings at that time.',
+    fields: [
+      { name: 'start', label: 'Arrived', type: 'datetime-local', value: shiftLocal(item.start_local, middle - half), required: true },
+      { name: 'end', label: 'Left', type: 'datetime-local', value: shiftLocal(item.start_local, middle + half), required: true },
+      { name: 'name', label: 'Place name (optional)', type: 'text', maxLength: 120 },
+    ],
+    saveText: 'Add stop',
+    onSubmit: ({ start, end, name }) => apply({ action: 'add_stop', item_id: item.id, start, end, name }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Day-level actions
 // ---------------------------------------------------------------------------
 
@@ -516,11 +635,13 @@ els.dateButton.addEventListener('click', () => {
 });
 els.date.addEventListener('change', () => els.date.value && show(els.date.value));
 els.snapAll.addEventListener('click', snapAll);
-els.reset.addEventListener('click', () => {
-  if (window.confirm('Undo every correction you made to this day? Names you gave to places everywhere are kept.')) {
-    apply({ action: 'reset' });
-  }
-});
+els.reset.addEventListener('click', () => openForm({
+  title: 'Undo edits to this day?',
+  help: 'Every correction you made to this day is removed, including changed times, splits and merges. Names you gave to places everywhere are kept.',
+  fields: [],
+  saveText: 'Undo edits',
+  onSubmit: () => apply({ action: 'reset' }),
+}));
 $('snackbar-close').addEventListener('click', () => snack(''));
 document.addEventListener('click', (event) => {
   if (openMenu && !openMenu.contains(event.target)) closeMenu();
@@ -528,7 +649,8 @@ document.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeMenu();
   const target = event.target;
-  if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || els.dialog.open) return;
+  if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement
+      || els.dialog.open || form.dialog.open) return;
   if (openMenu) return;
   if (event.key === 'ArrowLeft' && day && day.previous) show(day.previous);
   if (event.key === 'ArrowRight' && day && day.next) show(day.next);

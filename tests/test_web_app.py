@@ -326,3 +326,24 @@ def test_edits_are_kept_out_of_the_imported_history(server, tmp_path):
     assert 'item_edits' not in tables
     with sqlite3.connect(str(tmp_path / 'edits.sqlite')) as conn:
         assert conn.execute('SELECT name FROM item_edits').fetchall() == [('X',)]
+
+
+def test_reshaping_a_day_through_the_page(server):
+    items = get_json(server, '/api/day?date=2019-07-03')['items']
+    flight = items[1]
+    status, answer = post(server, {'date': '2019-07-03', 'item_id': flight['id'], 'action': 'split',
+                                   'at': '2019-07-03T13:00'})
+    assert status == 200 and 'split in two' in answer['note']
+    assert [i['kind'] for i in answer['day']['items']] == ['stop', 'move', 'move']
+    assert answer['day']['items'][2]['start_local'] == '2019-07-03T13:00'
+
+    status, answer = post(server, {'date': '2019-07-03', 'item_id': flight['id'], 'action': 'times',
+                                   'start': 'lunchtime', 'end': '2019-07-03T13:00'})
+    assert status == 400 and 'date and time' in answer['error']
+
+    status, answer = post(server, {'date': '2019-07-03', 'item_id': flight['id'], 'action': 'split',
+                                   'at': '2030-01-01T00:00'})
+    assert status == 400 and 'inside the journey' in answer['error']
+
+    status, answer = post(server, {'date': '2019-07-03', 'action': 'reset'})
+    assert [i['kind'] for i in answer['day']['items']] == ['stop', 'move']
