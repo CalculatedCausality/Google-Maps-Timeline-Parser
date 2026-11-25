@@ -1,0 +1,604 @@
+/* Material Design 3 styling shared by both pages: Google's published
+   design system (Roboto, Material Symbols, Material colour roles,
+   shapes and elevation), with a Google-style blue colour scheme. */
+
+:root {
+  --md-primary: #0b57d0;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #d3e3fd;
+  --md-on-primary-container: #041e49;
+  --md-secondary-container: #c2e7ff;
+  --md-on-secondary-container: #001d35;
+  --md-surface: #ffffff;
+  --md-surface-dim: #f0f4f9;
+  --md-surface-container: #f0f4f9;
+  --md-surface-container-high: #e9eef6;
+  --md-on-surface: #1f1f1f;
+  --md-on-surface-variant: #444746;
+  --md-outline: #747775;
+  --md-outline-variant: #c4c7c5;
+  --md-error: #b3261e;
+  --md-error-container: #f9dedc;
+  --md-success-container: #c4eed0;
+  --md-on-success-container: #072711;
+  --md-inverse-surface: #303030;
+  --md-inverse-on-surface: #f2f2f2;
+  --md-inverse-primary: #a8c7fa;
+  --md-elevation-1: 0 1px 2px rgb(0 0 0 / 30%), 0 1px 3px 1px rgb(0 0 0 / 15%);
+  --md-elevation-2: 0 1px 2px rgb(0 0 0 / 30%), 0 2px 6px 2px rgb(0 0 0 / 15%);
+  --md-elevation-3: 0 4px 8px 3px rgb(0 0 0 / 15%), 0 1px 3px rgb(0 0 0 / 30%);
+  --md-shape-full: 999px;
+  --md-shape-large: 16px;
+  --md-shape-extra-large: 28px;
+  --md-shape-medium: 12px;
+  --md-shape-small: 8px;
+  --md-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: Roboto, "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  color: var(--md-on-surface);
+  background: var(--md-surface-dim);
+}
+
+button,
+input,
+select {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+.material-symbols-outlined {
+  font-size: 20px;
+  line-height: 1;
+  user-select: none;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20;
+}
+
+.filled-icon {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20;
+}
+
+/* ---------------------------------------------------------------- Type */
+
+.headline-small {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.title-large {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.title-medium {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+}
+
+.body-small,
+.supporting {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  color: var(--md-on-surface-variant);
+}
+
+.label-large {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+/* ------------------------------------------------------------- Buttons */
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--md-shape-full);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--md-primary);
+  overflow: hidden;
+  white-space: nowrap;
+  transition: box-shadow 150ms var(--md-ease), background-color 150ms var(--md-ease);
+}
+
+.btn .material-symbols-outlined {
+  font-size: 18px;
+  margin-left: -8px;
+}
+
+.btn::after,
+.icon-btn::after,
+.menu-item::after,
+.chip::after,
+.row::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 150ms var(--md-ease);
+  pointer-events: none;
+}
+
+.btn:hover::after,
+.icon-btn:hover::after,
+.menu-item:hover::after,
+.chip:hover::after,
+.row:hover::after {
+  opacity: 0.08;
+}
+
+.btn:focus-visible::after,
+.icon-btn:focus-visible::after,
+.menu-item:focus-visible::after,
+.chip:focus-visible::after {
+  opacity: 0.12;
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.chip:focus-visible,
+.menu-item:focus-visible,
+.row:focus-visible {
+  outline: 2px solid var(--md-primary);
+  outline-offset: 2px;
+}
+
+.btn.filled {
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+}
+
+.btn.filled:hover {
+  box-shadow: var(--md-elevation-1);
+}
+
+.btn.tonal {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.btn.text {
+  padding: 0 12px;
+}
+
+.btn.text .material-symbols-outlined {
+  margin-left: -4px;
+}
+
+.btn:disabled,
+.icon-btn:disabled,
+.chip:disabled {
+  cursor: default;
+  color: rgb(31 31 31 / 38%);
+  background: transparent;
+  box-shadow: none;
+}
+
+.btn.filled:disabled,
+.btn.tonal:disabled {
+  background: rgb(31 31 31 / 12%);
+}
+
+.btn:disabled::after,
+.icon-btn:disabled::after,
+.chip:disabled::after {
+  opacity: 0;
+}
+
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  overflow: hidden;
+  flex: none;
+}
+
+.icon-btn .material-symbols-outlined {
+  font-size: 24px;
+}
+
+/* --------------------------------------------------------------- Chips */
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-small);
+  background: var(--md-surface);
+  color: var(--md-on-surface-variant);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.chip .material-symbols-outlined {
+  font-size: 18px;
+  margin-left: -6px;
+}
+
+.chip.selected {
+  border-color: transparent;
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.chip.assist {
+  cursor: default;
+}
+
+.chip.assist::after {
+  display: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--md-shape-small);
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface-variant);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.badge .material-symbols-outlined {
+  font-size: 16px;
+  margin-left: -4px;
+}
+
+.badge.success {
+  background: var(--md-success-container);
+  color: var(--md-on-success-container);
+}
+
+/* ------------------------------------------------------ Segmented nav */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-full);
+  overflow: hidden;
+  height: 40px;
+}
+
+.segmented a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  color: var(--md-on-surface);
+  text-decoration: none;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+.segmented a + a {
+  border-left: 1px solid var(--md-outline);
+}
+
+.segmented a[aria-current="page"] {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.segmented a:hover {
+  background: rgb(31 31 31 / 8%);
+}
+
+.segmented a[aria-current="page"]:hover {
+  background: var(--md-secondary-container);
+}
+
+.segmented .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* --------------------------------------------------------------- Menus */
+
+.menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 200px;
+  max-width: 300px;
+  padding: 8px 0;
+  border-radius: 4px;
+  background: var(--md-surface-container);
+  box-shadow: var(--md-elevation-2);
+  animation: menu-in 150ms var(--md-ease);
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: scaleY(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+.menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 14px;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.menu-item .material-symbols-outlined {
+  font-size: 24px;
+  color: var(--md-on-surface-variant);
+}
+
+.menu-item.current {
+  background: var(--md-secondary-container);
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--md-outline-variant);
+}
+
+/* -------------------------------------------------------------- Dialog */
+
+dialog.md-dialog {
+  width: min(400px, calc(100vw - 48px));
+  padding: 24px;
+  border: none;
+  border-radius: var(--md-shape-extra-large);
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface);
+  box-shadow: var(--md-elevation-3);
+}
+
+dialog.md-dialog::backdrop {
+  background: rgb(0 0 0 / 32%);
+}
+
+dialog.md-dialog h2 {
+  margin: 0 0 16px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.text-field {
+  position: relative;
+  display: block;
+  margin-top: 8px;
+}
+
+.text-field input {
+  width: 100%;
+  height: 56px;
+  padding: 0 16px;
+  border: 1px solid var(--md-outline);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.text-field input:focus {
+  outline: none;
+  border: 2px solid var(--md-primary);
+  padding: 0 15px;
+}
+
+.text-field label {
+  position: absolute;
+  left: 12px;
+  top: -8px;
+  padding: 0 4px;
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface-variant);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.text-field input:focus + label {
+  color: var(--md-primary);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  cursor: pointer;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--md-primary);
+}
+
+/* ------------------------------------------------------------ Snackbar */
+
+.snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 6px 8px 6px 16px;
+  border-radius: 4px;
+  background: var(--md-inverse-surface);
+  color: var(--md-inverse-on-surface);
+  box-shadow: var(--md-elevation-3);
+  transform: translate(-50%, 0);
+  transition: opacity 150ms var(--md-ease), transform 150ms var(--md-ease);
+}
+
+.snackbar[hidden] {
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 16px);
+}
+
+.snackbar .message {
+  flex: 1;
+}
+
+.snackbar.error .message::before {
+  content: "warning";
+  font-family: "Material Symbols Outlined";
+  font-size: 20px;
+  vertical-align: -5px;
+  margin-right: 8px;
+  color: #f2b8b5;
+}
+
+.snackbar .icon-btn {
+  color: var(--md-inverse-on-surface);
+}
+
+/* ------------------------------------------------------------ Progress */
+
+.progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  overflow: hidden;
+  background: var(--md-primary-container);
+  visibility: hidden;
+}
+
+.progress.active {
+  visibility: visible;
+}
+
+.progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: var(--md-primary);
+  animation: progress 1.4s var(--md-ease) infinite;
+}
+
+@keyframes progress {
+  from { left: -40%; }
+  to { left: 100%; }
+}
+
+/* ------------------------------------------------------- Map controls */
+
+.leaflet-container {
+  font-family: inherit;
+  background: #e5e3df;
+}
+
+/* Calmer OpenStreetMap colours, closer to a Google-style base map */
+.soft-tiles {
+  filter: saturate(0.65) brightness(1.05) contrast(0.92);
+}
+
+.leaflet-bar {
+  border: none !important;
+  border-radius: var(--md-shape-small) !important;
+  box-shadow: var(--md-elevation-1) !important;
+  overflow: hidden;
+}
+
+.leaflet-bar a {
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  color: var(--md-on-surface-variant) !important;
+  border-bottom-color: var(--md-outline-variant) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--md-shape-medium);
+  box-shadow: var(--md-elevation-2);
+}
+
+.leaflet-popup-content {
+  margin: 12px 16px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.popup-title {
+  font-weight: 500;
+}
+
+.popup-line {
+  color: var(--md-on-surface-variant);
+}

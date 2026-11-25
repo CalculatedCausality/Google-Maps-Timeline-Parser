@@ -1,0 +1,93 @@
+/* Explore: a floating card of controls over a full-screen map. */
+
+body.page-explore {
+  overflow: hidden;
+}
+
+#map {
+  position: fixed;
+  inset: 0;
+}
+
+.top-card {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  padding: 12px 16px;
+  border-radius: var(--md-shape-large);
+  background: var(--md-surface);
+  box-shadow: var(--md-elevation-2);
+  overflow: hidden;
+}
+
+.top-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-row:first-of-type {
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand .material-symbols-outlined {
+  font-size: 24px;
+  color: var(--md-primary);
+}
+
+.date-field,
+.select-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--md-outline);
+  border-radius: 4px;
+}
+
+.date-field span {
+  font-size: 12px;
+  color: var(--md-on-surface-variant);
+}
+
+.date-field input,
+.select-field select {
+  border: none;
+  background: transparent;
+  outline: none;
+  height: 36px;
+}
+
+.date-field:focus-within,
+.select-field:focus-within {
+  border: 2px solid var(--md-primary);
+  padding: 0 7px 0 11px;
+}
+
+.select-field .material-symbols-outlined {
+  color: var(--md-on-surface-variant);
+}
+
+.status {
+  max-width: 640px;
+  font-size: 13px;
+}
+
+.status.error {
+  color: var(--md-error);
+}

@@ -4,39 +4,68 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Timeline: explore</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0&amp;icon_names=arrow_drop_down,auto_fix_high,blur_on,calendar_today,check,chevron_left,chevron_right,close,commute,directions_bike,directions_boat,directions_bus,directions_car,directions_run,directions_walk,edit,explore,flight,layers,location_on,more_vert,route,scatter_plot,subway,timeline,today,train,tram,two_wheeler,undo,visibility,visibility_off,warning&amp;display=block">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
         crossorigin="">
-  <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/material.css">
+  <link rel="stylesheet" href="/explore.css">
 </head>
-<body>
-  <header id="bar">
-    <nav class="group nav"><a href="/">Day timeline</a><strong>Explore</strong></nav>
-    <div class="group">
-      <button id="prev" type="button" title="Previous day with data">&#9664;</button>
-      <label>From <input type="date" id="from"></label>
-      <label>To <input type="date" id="to"></label>
-      <button id="next" type="button" title="Next day with data">&#9654;</button>
-      <select id="span" title="Widen the view around the From date">
-        <option value="">Show&hellip;</option>
-        <option value="day">that day</option>
-        <option value="week">that week</option>
-        <option value="month">that month</option>
-        <option value="year">that year</option>
-        <option value="all">everything</option>
-      </select>
+<body class="page-explore">
+  <div id="map" aria-label="Map"></div>
+
+  <header class="top-card">
+    <div class="progress" id="progress" role="progressbar" aria-label="Working"></div>
+    <div class="top-row">
+      <div class="brand">
+        <span class="material-symbols-outlined">timeline</span>
+        <span class="title-large">Timeline</span>
+      </div>
+      <nav class="segmented" aria-label="Pages">
+        <a href="/"><span class="material-symbols-outlined">today</span>Day</a>
+        <a href="/explore" aria-current="page"><span class="material-symbols-outlined">explore</span>Explore</a>
+      </nav>
     </div>
-    <div class="group toggles">
-      <label><input type="checkbox" id="lines" checked> Lines</label>
-      <label title="Remove jumps, collapse time standing still, smooth the wobble">
-        <input type="checkbox" id="clean" checked> Clean up</label>
-      <label><input type="checkbox" id="readings"> Readings</label>
-      <label><input type="checkbox" id="visits" checked> Visits</label>
-      <label><input type="checkbox" id="heat"> Heatmap</label>
+    <div class="top-row range-row">
+      <button class="icon-btn" id="prev" type="button" aria-label="Previous day with data" title="Previous day with data">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <label class="date-field"><span>From</span><input type="date" id="from"></label>
+      <label class="date-field"><span>To</span><input type="date" id="to"></label>
+      <button class="icon-btn" id="next" type="button" aria-label="Next day with data" title="Next day with data">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+      <label class="select-field">
+        <span class="material-symbols-outlined">calendar_today</span>
+        <select id="span" aria-label="Widen the view around the From date">
+          <option value="">Show…</option>
+          <option value="day">That day</option>
+          <option value="week">That week</option>
+          <option value="month">That month</option>
+          <option value="year">That year</option>
+          <option value="all">Everything</option>
+        </select>
+      </label>
     </div>
-    <div id="status" role="status" aria-live="polite">Loading&hellip;</div>
+    <div class="top-row chips" role="group" aria-label="Layers">
+      <button class="chip selected" id="lines" type="button" aria-pressed="true">
+        <span class="material-symbols-outlined">timeline</span>Lines</button>
+      <button class="chip selected" id="clean" type="button" aria-pressed="true"
+              title="Remove jumps, collapse time standing still, smooth the wobble">
+        <span class="material-symbols-outlined">auto_fix_high</span>Clean up</button>
+      <button class="chip" id="readings" type="button" aria-pressed="false">
+        <span class="material-symbols-outlined">scatter_plot</span>Readings</button>
+      <button class="chip selected" id="visits" type="button" aria-pressed="true">
+        <span class="material-symbols-outlined">location_on</span>Visits</button>
+      <button class="chip" id="heat" type="button" aria-pressed="false">
+        <span class="material-symbols-outlined">blur_on</span>Heatmap</button>
+    </div>
+    <div id="status" class="status supporting" role="status" aria-live="polite">Loading…</div>
   </header>
-  <div id="map"></div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
           crossorigin=""></script>

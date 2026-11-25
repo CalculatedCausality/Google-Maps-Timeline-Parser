@@ -25,13 +25,14 @@ from repositories.timeline_repository import TimelineRepository
 
 from .coverage_service import CoverageService
 from .day_timeline import MODES, DayTimelineService
-from .road_snapper import OverpassFetcher, RoadCache, RoadSnapper
+from .road_snapper import (MODE_PROFILES, UNSNAPPABLE_MODES, OverpassFetcher, RoadCache,
+                           RoadSnapper)
 from .track_cleaner import CleanerSettings, TrackCleaner, segment_length_km
 
 WEB_FOLDER = Path(__file__).resolve().parent.parent / 'web'
-STATIC_FILES = {'/': 'day.html', '/day.js': 'day.js',
+STATIC_FILES = {'/': 'day.html', '/day.js': 'day.js', '/day.css': 'day.css',
                 '/explore': 'explore.html', '/explore.js': 'explore.js',
-                '/app.css': 'app.css'}
+                '/explore.css': 'explore.css', '/material.css': 'material.css'}
 MAX_BODY_BYTES = 64 * 1024
 MAX_NEW_TILES_PER_SNAP = 40
 MAX_NAME_LENGTH = 120
@@ -46,9 +47,10 @@ CACHE_ENTRIES = 24
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     "script-src 'self' https://unpkg.com; "
-    "style-src 'self' 'unsafe-inline' https://unpkg.com; "
+    "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; "
+    "font-src https://fonts.gstatic.com; "
     "img-src 'self' data: https://tile.openstreetmap.org; "
-    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 )
 
 
@@ -321,16 +323,18 @@ class MapData:
         elif action == 'snap':
             if item['kind'] != 'move':
                 raise BadRequest('Only journeys can be snapped to roads')
-            note = self._snap(day, key, item_id)
+            if item['mode'] in UNSNAPPABLE_MODES:
+                raise Refused(f"A {item['mode_label'].lower()} journey has no roads to follow.")
+            note = self._snap(day, key, item_id, MODE_PROFILES.get(item['mode'], 'all'))
         else:
             raise BadRequest('Unknown action')
         return {'day': self._day_payload(day), 'note': note}
 
-    def _snap(self, day: date, key: str, item_id: str) -> str:
+    def _snap(self, day: date, key: str, item_id: str, profile: str) -> str:
         line = self._timeline.move_locations(day, item_id)
         if not line or len(line) < 2:
             raise Refused('This journey has no line to snap.')
-        result = self._snapper.snap([line], MAX_NEW_TILES_PER_SNAP)
+        result = self._snapper.snap([line], MAX_NEW_TILES_PER_SNAP, profile)
         if result.failed_tiles:
             raise Refused('The road map could not be downloaded from OpenStreetMap '
                           f'({result.failure or "no reason given"}). Try again in a minute.')

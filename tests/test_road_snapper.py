@@ -43,8 +43,8 @@ class FakeFetcher:
     def __init__(self, ways, fail=False):
         self.ways, self.fail, self.calls = ways, fail, []
 
-    def __call__(self, tile):
-        self.calls.append(tile)
+    def __call__(self, tile, profile='all'):
+        self.calls.append((tile, profile))
         if self.fail:
             raise RoadDownloadError('offline')
         return self.ways
@@ -170,6 +170,7 @@ def test_cache_round_trip(cache):
     assert cache.get((1, 2)) is None
     cache.put((1, 2), ways)
     assert cache.get((1, 2)) == ways
+    assert cache.get((1, 2), 'road') is None
 
 
 def test_overpass_answer_is_parsed():
@@ -187,7 +188,30 @@ def test_overpass_answer_is_parsed():
 def test_overpass_query_asks_only_for_a_box():
     query = OverpassFetcher.query(-33.9, 151.2, -33.85, 151.25)
     assert '(-33.9,151.2,-33.85,151.25)' in query
-    assert 'highway' in query and 'railway' in query and 'out geom' in query
+    assert 'highway' in query and 'railway' in query and 'out skel geom' in query
+
+
+def test_each_profile_asks_for_its_own_network():
+    box = (-33.9, 151.2, -33.85, 151.25)
+    road = OverpassFetcher.query(*box, profile='road')
+    foot = OverpassFetcher.query(*box, profile='foot')
+    rail = OverpassFetcher.query(*box, profile='rail')
+    assert 'residential' in road and 'railway' not in road and 'footway' not in road
+    assert 'highway' in foot and 'motorway|motorway_link' in foot and 'railway' not in foot
+    assert 'railway' in rail and 'highway' not in rail
+
+
+def test_squares_are_cached_per_profile(cache):
+    fetcher = FakeFetcher(grid_ways())
+    snapper = RoadSnapper(cache, fetcher)
+    snapper.snap([noisy_l_walk()], max_new_tiles=10, profile='foot')
+    snapper.snap([noisy_l_walk()], max_new_tiles=10, profile='foot')
+    foot_calls = len(fetcher.calls)
+    snapper.snap([noisy_l_walk()], max_new_tiles=10, profile='road')
+    assert len(fetcher.calls) == 2 * foot_calls
+    assert {profile for _, profile in fetcher.calls} == {'foot', 'road'}
+    with pytest.raises(ValueError):
+        snapper.snap([noisy_l_walk()], max_new_tiles=10, profile='boat')
 
 
 class FakeResponse:
@@ -226,7 +250,7 @@ def test_busy_service_is_retried_then_succeeds(monkeypatch):
     monkeypatch.setattr(urllib.request, 'urlopen', fake_urlopen)
     fetcher = OverpassFetcher(min_interval_s=0)
     fetcher.retry_waits_s = (0, 0, 0)
-    assert fetcher((0, 0)) == []
+    assert fetcher((0, 0), 'road') == []
     assert len(sent) == 3
     assert sent[0].get_header('User-agent') == 'timeline-road-snap/1.0'
     assert b'data=' in sent[0].data

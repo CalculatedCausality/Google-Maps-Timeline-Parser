@@ -3,30 +3,87 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Timeline: day</title>
+  <title>Timeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0&amp;icon_names=arrow_drop_down,auto_fix_high,blur_on,calendar_today,check,chevron_left,chevron_right,close,commute,directions_bike,directions_boat,directions_bus,directions_car,directions_run,directions_walk,edit,explore,flight,layers,location_on,more_vert,route,scatter_plot,subway,timeline,today,train,tram,two_wheeler,undo,visibility,visibility_off,warning&amp;display=block">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
         crossorigin="">
-  <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/material.css">
+  <link rel="stylesheet" href="/day.css">
 </head>
-<body class="day-page">
-  <aside id="panel">
-    <nav class="nav"><strong>Day timeline</strong><a href="/explore">Explore</a></nav>
-    <div class="day-picker">
-      <button id="prev" type="button" title="Previous day with data">&#9664;</button>
-      <input type="date" id="date" aria-label="Day">
-      <button id="next" type="button" title="Next day with data">&#9654;</button>
-    </div>
-    <div id="day-title" class="day-title"></div>
-    <div id="summary" class="summary"></div>
-    <div class="day-actions">
-      <button id="snap-all" type="button">Snap all journeys to roads</button>
-      <button id="reset" type="button">Undo my edits</button>
-    </div>
-    <div id="note" class="note" role="status" aria-live="polite"></div>
-    <ol id="items" class="items"></ol>
+<body class="page-day">
+  <div id="map" aria-label="Map of the day"></div>
+
+  <aside class="side-panel" aria-label="Day timeline">
+    <div class="progress" id="progress" role="progressbar" aria-label="Working"></div>
+    <header class="panel-top">
+      <div class="brand">
+        <span class="material-symbols-outlined">timeline</span>
+        <span class="title-large">Timeline</span>
+      </div>
+      <nav class="segmented" aria-label="Pages">
+        <a href="/" aria-current="page"><span class="material-symbols-outlined">today</span>Day</a>
+        <a href="/explore"><span class="material-symbols-outlined">explore</span>Explore</a>
+      </nav>
+    </header>
+
+    <section class="day-head">
+      <div class="date-row">
+        <button class="icon-btn" id="prev" type="button" aria-label="Previous day with data" title="Previous day with data">
+          <span class="material-symbols-outlined">chevron_left</span>
+        </button>
+        <button class="date-button" id="date-button" type="button" aria-label="Choose a day">
+          <span id="day-title" class="title-medium">Loading…</span>
+          <span class="material-symbols-outlined">calendar_today</span>
+        </button>
+        <input type="date" id="date" class="date-input" tabindex="-1" aria-hidden="true">
+        <button class="icon-btn" id="next" type="button" aria-label="Next day with data" title="Next day with data">
+          <span class="material-symbols-outlined">chevron_right</span>
+        </button>
+      </div>
+      <div id="summary" class="summary-chips"></div>
+      <div class="day-actions">
+        <button class="btn tonal" id="snap-all" type="button">
+          <span class="material-symbols-outlined">route</span>Snap all to roads
+        </button>
+        <button class="btn text" id="reset" type="button">
+          <span class="material-symbols-outlined">undo</span>Undo edits
+        </button>
+      </div>
+    </section>
+
+    <ol id="items" class="timeline"></ol>
+    <footer class="panel-foot supporting">Your corrections are saved separately; the imported history is never changed.</footer>
   </aside>
-  <div id="map"></div>
+
+  <div class="snackbar" id="snackbar" role="status" aria-live="polite" hidden>
+    <span class="message"></span>
+    <button class="icon-btn" id="snackbar-close" type="button" aria-label="Dismiss">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
+
+  <dialog class="md-dialog" id="rename-dialog" aria-labelledby="rename-title">
+    <form method="dialog" id="rename-form">
+      <h2 id="rename-title" class="headline-small">Name this place</h2>
+      <div class="text-field">
+        <input type="text" id="rename-input" maxlength="120" autocomplete="off" required>
+        <label for="rename-input">Place name</label>
+      </div>
+      <label class="check-row">
+        <input type="checkbox" id="rename-everywhere">
+        <span>Use this name for every visit within 75 m, on every day</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="btn text" type="button" id="rename-cancel">Cancel</button>
+        <button class="btn text" type="submit" id="rename-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
           crossorigin=""></script>

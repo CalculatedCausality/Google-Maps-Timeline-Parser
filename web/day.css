@@ -1,0 +1,334 @@
+/* Day timeline: a floating side panel over a full-screen map. */
+
+body.page-day {
+  overflow: hidden;
+}
+
+#map {
+  position: fixed;
+  inset: 0;
+}
+
+.side-panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  bottom: 12px;
+  width: 408px;
+  max-width: calc(100vw - 24px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--md-shape-large);
+  background: var(--md-surface);
+  box-shadow: var(--md-elevation-2);
+  overflow: hidden;
+}
+
+.panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 16px 8px 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--md-on-surface);
+}
+
+.brand .material-symbols-outlined {
+  font-size: 24px;
+  color: var(--md-primary);
+}
+
+.day-head {
+  padding: 4px 12px 12px;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+
+.date-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.date-button {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--md-shape-full);
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.date-button:hover {
+  background: rgb(31 31 31 / 8%);
+}
+
+.date-button .material-symbols-outlined {
+  color: var(--md-on-surface-variant);
+}
+
+.date-input {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.day-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The vertical timeline */
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.empty-day {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--md-on-surface-variant);
+}
+
+.empty-day .material-symbols-outlined {
+  display: block;
+  margin: 0 auto 12px;
+  font-size: 40px;
+  color: var(--md-outline);
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px 1fr auto 40px;
+  align-items: center;
+  column-gap: 4px;
+  padding: 0 8px 0 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.row.selected {
+  background: var(--md-primary-container);
+}
+
+.row.is-hidden > :not(.row-actions) {
+  opacity: 0.45;
+}
+
+.rail {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.row.place {
+  min-height: 72px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.pin {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 0 0 3px var(--md-surface);
+}
+
+.row.place.is-hidden .pin {
+  background: var(--md-outline);
+}
+
+.row.travel {
+  min-height: 80px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.row.travel .rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--mode-colour);
+}
+
+.row.travel.estimated .rail::before {
+  background: repeating-linear-gradient(to bottom, var(--mode-colour) 0 6px, transparent 6px 12px);
+}
+
+.mode-icon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--md-surface);
+  color: var(--mode-colour);
+  border: 2px solid var(--mode-colour);
+}
+
+.mode-icon.material-symbols-outlined {
+  font-size: 18px;
+}
+
+.row-main {
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.place-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-name.unnamed {
+  color: var(--md-on-surface-variant);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.row-main .supporting {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mode-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 28px;
+  margin-left: -8px;
+  padding: 0 4px 0 8px;
+  border: none;
+  border-radius: var(--md-shape-small);
+  background: transparent;
+  color: var(--md-on-surface);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mode-button:hover {
+  background: rgb(31 31 31 / 8%);
+}
+
+.mode-button:disabled {
+  cursor: default;
+  background: none;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.badges:empty {
+  display: none;
+}
+
+.row-side {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.time {
+  font-size: 14px;
+  color: var(--md-on-surface);
+}
+
+.row-actions {
+  align-self: center;
+}
+
+.panel-foot {
+  padding: 8px 20px 12px;
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+/* Map pins */
+
+.map-pin {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  font: 500 13px/1 Roboto, system-ui, sans-serif;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
+}
+
+.map-pin.selected {
+  background: #c5221f;
+  transform: scale(1.2);
+}
+
+@media (max-width: 720px) {
+  .side-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    height: 55vh;
+    border-radius: var(--md-shape-large) var(--md-shape-large) 0 0;
+  }
+}

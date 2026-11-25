@@ -1,7 +1,7 @@
 """Snaps a cleaned track onto the roads, paths and railways it most likely used.
 
 Road layouts come from OpenStreetMap through the Overpass service. Only the
-outline of each 2.5 km square of map is sent, never your track or its times,
+outline of each 5 km square of map is sent, never your track or its times,
 and every square is kept in a local cache file so it is downloaded once.
 
 Matching follows Newson and Krumm (2009), "Hidden Markov map matching
@@ -32,7 +32,7 @@ from models.location import Location
 
 from .track_cleaner import EARTH_RADIUS_M, distance_m
 
-TILE_DEG = 0.025                      # one download covers about 2.8 by 2.3 km
+TILE_DEG = 0.05                       # one download covers about 5.5 by 4.6 km
 GRID_DEG = 0.001                      # spatial index cell, about 100 m
 METRES_PER_DEG = 111_195.0
 OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
@@ -40,7 +40,21 @@ USER_AGENT = 'timeline-road-snap/1.0'
 
 HIGHWAY_EXCLUDED = ('proposed|construction|abandoned|disused|platform|elevator|'
                     'bus_stop|raceway|corridor|razed|planned')
+ROAD_KINDS = ('motorway|trunk|primary|secondary|tertiary|unclassified|residential|'
+              'motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|'
+              'living_street|service|road|busway')
+NOT_ON_FOOT = 'motorway|motorway_link|trunk_link'
 RAILWAY_KINDS = 'rail|subway|light_rail|tram|narrow_gauge|monorail'
+
+# Which network each kind of journey is matched against. Downloading only
+# what is needed keeps city squares small: footpaths dominate city data.
+PROFILES = ('road', 'foot', 'rail', 'all')
+MODE_PROFILES = {
+    'driving': 'road', 'motorcycling': 'road', 'bus': 'road',
+    'walking': 'foot', 'running': 'foot', 'cycling': 'foot',
+    'train': 'rail', 'tram': 'rail', 'metro': 'rail',
+}
+UNSNAPPABLE_MODES = ('ferry', 'flying')
 
 Tile = Tuple[int, int]
 Way = Tuple[int, List[int], List[Tuple[float, float]]]
@@ -99,27 +113,32 @@ def tiles_for(points: Sequence[Location], margin_deg: float = 0.002) -> List[Til
 class OverpassFetcher:
     """Downloads the roads, paths and railways inside one map square."""
 
-    def __init__(self, url: str = OVERPASS_URL, timeout_s: float = 120.0,
+    def __init__(self, url: str = OVERPASS_URL, timeout_s: float = 75.0,
                  min_interval_s: float = 1.0) -> None:
         self._url = url
         self._timeout_s = timeout_s
         self._min_interval_s = min_interval_s
         self._last_request = 0.0
         self._lock = threading.Lock()
-        self.retry_waits_s = (0, 10, 30)
+        self.retry_waits_s = (0, 10)
 
     @staticmethod
-    def query(south: float, west: float, north: float, east: float) -> str:
+    def query(south: float, west: float, north: float, east: float,
+              profile: str = 'all') -> str:
         box = f'{south},{west},{north},{east}'
-        return (
-            '[out:json][timeout:90];('
-            f'way["highway"]["highway"!~"^({HIGHWAY_EXCLUDED})$"]({box});'
-            f'way["railway"~"^({RAILWAY_KINDS})$"]({box});'
-            ');out geom;'
-        )
+        parts = {
+            'road': [f'way["highway"~"^({ROAD_KINDS})$"]({box});'],
+            'foot': [f'way["highway"]["highway"!~"^({HIGHWAY_EXCLUDED}|{NOT_ON_FOOT})$"]({box});'],
+            'rail': [f'way["railway"~"^({RAILWAY_KINDS})$"]({box});'],
+            'all': [f'way["highway"]["highway"!~"^({HIGHWAY_EXCLUDED})$"]({box});',
+                    f'way["railway"~"^({RAILWAY_KINDS})$"]({box});'],
+        }[profile]
+        # 'skel geom' sends shapes only, without names or other details.
+        return f'[out:json][timeout:60];({"".join(parts)});out skel geom;'
 
-    def __call__(self, tile: Tile) -> List[Way]:
-        body = urllib.parse.urlencode({'data': self.query(*tile_bounds(tile))}).encode()
+    def __call__(self, tile: Tile, profile: str = 'all') -> List[Way]:
+        query = self.query(*tile_bounds(tile), profile=profile)
+        body = urllib.parse.urlencode({'data': query}).encode()
         with self._lock:  # one request at a time, politely spaced
             payload = self._request(body)
         try:
@@ -180,25 +199,25 @@ class RoadCache:
     def __init__(self, path: str) -> None:
         self._path = path
         with sqlite3.connect(path) as conn:
-            conn.execute('CREATE TABLE IF NOT EXISTS road_tiles ('
-                         'lat_index INTEGER, lng_index INTEGER, fetched_at TEXT, '
-                         'ways BLOB, PRIMARY KEY (lat_index, lng_index))')
+            conn.execute('CREATE TABLE IF NOT EXISTS road_squares ('
+                         'lat_index INTEGER, lng_index INTEGER, profile TEXT, fetched_at TEXT, '
+                         'ways BLOB, PRIMARY KEY (lat_index, lng_index, profile))')
 
-    def get(self, tile: Tile) -> Optional[List[Way]]:
+    def get(self, tile: Tile, profile: str = 'all') -> Optional[List[Way]]:
         with sqlite3.connect(self._path) as conn:
-            row = conn.execute('SELECT ways FROM road_tiles WHERE lat_index = ? '
-                               'AND lng_index = ?', tile).fetchone()
+            row = conn.execute('SELECT ways FROM road_squares WHERE lat_index = ? '
+                               'AND lng_index = ? AND profile = ?', (*tile, profile)).fetchone()
         if row is None:
             return None
         return [(w[0], w[1], [tuple(p) for p in w[2]])
                 for w in json.loads(zlib.decompress(row[0]))]
 
-    def put(self, tile: Tile, ways: List[Way]) -> None:
+    def put(self, tile: Tile, ways: List[Way], profile: str = 'all') -> None:
         blob = zlib.compress(json.dumps(ways, separators=(',', ':')).encode(), 6)
         with sqlite3.connect(self._path) as conn:
-            conn.execute('INSERT OR REPLACE INTO road_tiles VALUES (?, ?, ?, ?)',
-                         (tile[0], tile[1], time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                          blob))
+            conn.execute('INSERT OR REPLACE INTO road_squares VALUES (?, ?, ?, ?, ?)',
+                         (tile[0], tile[1], profile,
+                          time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), blob))
 
 
 # ----------------------------------------------------------------------
@@ -346,15 +365,21 @@ class SnapResult:
 
 
 class RoadSnapper:
-    def __init__(self, cache: RoadCache, fetcher: Callable[[Tile], List[Way]],
+    def __init__(self, cache: RoadCache, fetcher: Callable[..., List[Way]],
                  settings: Optional[SnapSettings] = None) -> None:
         self._cache = cache
         self._fetch = fetcher
         self.settings = settings or SnapSettings()
         self._lock = threading.Lock()
 
-    def snap(self, segments: List[List[Location]], max_new_tiles: int) -> SnapResult:
-        """Snap each segment, downloading at most `max_new_tiles` new map squares."""
+    def snap(self, segments: List[List[Location]], max_new_tiles: int,
+             profile: str = 'all') -> SnapResult:
+        """Snap each segment, downloading at most `max_new_tiles` new map squares.
+
+        `profile` chooses the network: 'road', 'foot', 'rail' or 'all'.
+        """
+        if profile not in PROFILES:
+            raise ValueError(profile)
         result = SnapResult(segments=[])
         snappable = [s for s in segments if self._slow_enough(s)]
         wanted: List[Tile] = sorted({t for s in snappable for t in tiles_for(s)})
@@ -362,7 +387,7 @@ class RoadSnapper:
         unavailable: Set[Tile] = set()
         with self._lock:
             for tile in wanted:
-                cached = self._cache.get(tile)
+                cached = self._cache.get(tile, profile)
                 if cached is None:
                     if max_new_tiles <= 0:
                         unavailable.add(tile)
@@ -370,13 +395,13 @@ class RoadSnapper:
                         continue
                     max_new_tiles -= 1
                     try:
-                        cached = self._fetch(tile)
+                        cached = self._fetch(tile, profile)
                     except RoadDownloadError as error:
                         unavailable.add(tile)
                         result.failed_tiles += 1
                         result.failure = str(error)
                         continue
-                    self._cache.put(tile, cached)
+                    self._cache.put(tile, cached, profile)
                 ways.extend(cached)
         network = RoadNetwork(ways)
 

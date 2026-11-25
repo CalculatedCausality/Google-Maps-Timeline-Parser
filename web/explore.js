@@ -3,7 +3,7 @@
 // Timeline map: asks the local server for the chosen dates and draws them.
 // All text from the data is inserted with textContent, never as HTML.
 
-const PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#c026d3', '#65a30d'];
+const PALETTE = ['#1a73e8', '#d93025', '#188038', '#8430ce', '#e37400', '#007b83', '#c5221f', '#5f6368'];
 
 const els = {
   from: document.getElementById('from'),
@@ -17,13 +17,31 @@ const els = {
   visits: document.getElementById('visits'),
   heat: document.getElementById('heat'),
   status: document.getElementById('status'),
+  progress: document.getElementById('progress'),
 };
 
-const map = L.map('map', { preferCanvas: true }).setView([-25.3, 133.8], 4);
+const map = L.map('map', { preferCanvas: true, zoomControl: false }).setView([-25.3, 133.8], 4);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
+  className: 'soft-tiles',
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
+
+// Layer switches are Material filter chips; aria-pressed holds their state.
+function isOn(chip) {
+  return chip.getAttribute('aria-pressed') === 'true';
+}
+
+function setChip(chip, on) {
+  chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+  chip.classList.toggle('selected', on);
+}
+
+function topCardPadding() {
+  const card = document.querySelector('.top-card');
+  return { paddingTopLeft: [30, card.offsetHeight + 40], paddingBottomRight: [30, 30] };
+}
 
 const layers = {
   lines: L.layerGroup().addTo(map),
@@ -156,12 +174,13 @@ async function load(fitView) {
   }
   const mine = ++requestNumber;
   setStatus('Loading…');
+  els.progress.classList.add('active');
   const range = { from, to };
   const wants = {
-    track: els.lines.checked ? getJson('/api/track', { ...range, clean: els.clean.checked ? '1' : '0' }) : null,
-    readings: els.readings.checked ? getJson('/api/readings', range) : null,
-    visits: els.visits.checked ? getJson('/api/visits', range) : null,
-    heat: els.heat.checked ? getJson('/api/heat', range) : null,
+    track: isOn(els.lines) ? getJson('/api/track', { ...range, clean: isOn(els.clean) ? '1' : '0' }) : null,
+    readings: isOn(els.readings) ? getJson('/api/readings', range) : null,
+    visits: isOn(els.visits) ? getJson('/api/visits', range) : null,
+    heat: isOn(els.heat) ? getJson('/api/heat', range) : null,
   };
 
   let results;
@@ -170,10 +189,14 @@ async function load(fitView) {
     const values = await Promise.all(keys.map((key) => wants[key]));
     results = Object.fromEntries(keys.map((key, i) => [key, values[i]]));
   } catch (error) {
-    if (mine === requestNumber) setStatus(error.message, true);
+    if (mine === requestNumber) {
+      setStatus(error.message, true);
+      els.progress.classList.remove('active');
+    }
     return;
   }
   if (mine !== requestNumber) return; // a newer request has started
+  els.progress.classList.remove('active');
 
   draw(results, fitView);
 }
@@ -196,7 +219,7 @@ function draw(results, fitView) {
       const day = feature.properties.day;
       if (!colours.has(day)) colours.set(day, PALETTE[colours.size % PALETTE.length]);
       const latLngs = feature.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-      const line = L.polyline(latLngs, { color: colours.get(day), weight: 3, opacity: 0.85 });
+      const line = L.polyline(latLngs, { color: colours.get(day), weight: 4, opacity: 0.9, lineCap: 'round' });
       const p = feature.properties;
       line.bindPopup(() => popup(`${p.start} to ${p.end.slice(11)}`, [`${p.km} km`]));
       line.addTo(layers.lines);
@@ -211,7 +234,7 @@ function draw(results, fitView) {
   if (results.readings) {
     for (const [lat, lng, accuracy, time] of results.readings.points) {
       const dot = L.circleMarker([lat, lng], {
-        radius: 2, weight: 0, fillColor: '#111827', fillOpacity: 0.6,
+        radius: 2.5, weight: 0, fillColor: '#444746', fillOpacity: 0.7,
       });
       dot.bindPopup(() => popup(time, [accuracy == null ? 'no accuracy given' : `within ${Math.round(accuracy)} m`]));
       dot.addTo(layers.readings);
@@ -224,7 +247,7 @@ function draw(results, fitView) {
   if (results.visits) {
     for (const visit of results.visits.visits) {
       const marker = L.circleMarker([visit.lat, visit.lng], {
-        radius: 6, color: '#111827', weight: 1.5, fillColor: '#facc15', fillOpacity: 0.9,
+        radius: 7, color: '#ffffff', weight: 2, fillColor: '#0b57d0', fillOpacity: 1,
       });
       const title = visit.name || (visit.type && visit.type !== 'UNKNOWN' ? visit.type : 'Visit');
       const sure = visit.probability == null ? '' : `Google was ${Math.round(visit.probability * 100)}% sure of the place`;
@@ -246,7 +269,7 @@ function draw(results, fitView) {
     : `${longDate(els.from.value)} to ${longDate(els.to.value)}`;
   const nothing = !bounds.isValid();
   setStatus(`${range}: ${nothing ? 'nothing recorded' : notes.join(' · ')}`);
-  if (fitView && !nothing) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 17 });
+  if (fitView && !nothing) map.fitBounds(bounds, { ...topCardPadding(), maxZoom: 17 });
 }
 
 // ---------------------------------------------------------------------------
@@ -265,11 +288,15 @@ els.span.addEventListener('change', () => {
   widen(els.span.value);
   els.span.value = '';
 });
-for (const box of [els.lines, els.clean, els.readings, els.visits, els.heat]) {
-  box.addEventListener('change', () => load(false));
+for (const chip of [els.lines, els.clean, els.readings, els.visits, els.heat]) {
+  chip.addEventListener('click', () => {
+    setChip(chip, !isOn(chip));
+    load(false);
+  });
 }
 document.addEventListener('keydown', (event) => {
-  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement
+      || event.target instanceof HTMLButtonElement) return;
   if (event.key === 'ArrowLeft') previousDay();
   if (event.key === 'ArrowRight') nextDay();
 });

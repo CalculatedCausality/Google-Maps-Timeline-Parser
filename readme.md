@@ -79,7 +79,7 @@ pip install -r requirements.txt
 
 ## The timeline in your browser
 
-`python main.py --serve` starts a small web server on your own computer and prints the address to open. It reads the database directly, so after an import you only need to reload the page.
+`python main.py --serve` starts a small web server on your own computer and prints the address to open. It reads the database directly, so after an import you only need to reload the page. Both pages use Material Design, the design system Google publishes for its own products (Roboto, Material Symbols icons, Material colours and components), so they look and behave like a Google app without using any Google logos or names.
 
 ### Day timeline (the first page)
 
@@ -97,11 +97,13 @@ Corrections are saved in a separate file, `<database>-edits.sqlite`, beside the 
 
 ### Snapping to roads
 
-Snapping downloads the road layout around a journey from OpenStreetMap's free [Overpass](https://overpass-api.de/) service and works out the most likely route through it on your computer (a hidden Markov model, as in Newson and Krumm 2009). Only the outline of each 2.5 km square of map is sent, never your track, its times or anything else about you. Each square is kept in `<database>-roads.sqlite` and downloaded once. The first snap in a busy city area can take up to a minute while its roads download; after that it is quick.
+Snapping downloads the road layout around a journey from OpenStreetMap's free [Overpass](https://overpass-api.de/) service and works out the most likely route through it on your computer (a hidden Markov model, as in Newson and Krumm 2009). Only the outline of each 5 km square of map is sent, never your track, its times or anything else about you. Each journey downloads just the network it needs: roads for driving and buses, roads and paths for walking and cycling, railways for trains. Each square is kept in `<database>-roads.sqlite` and downloaded once. The free service is slow, about 30 to 60 seconds per square, so the first snap in a new area takes a minute or two; after that it is quick.
 
 Parts of a journey with no road or path nearby (a park, open water) keep their cleaned line, and flights are never snapped. The free service allows about 10,000 requests a day, which ordinary use never approaches. When it is busy the snap is retried twice, then you are asked to try again a minute later.
 
 ### Explore
+
+The explore page shows the history as recorded: it does not apply your day corrections, such as snapped journeys or hidden stops.
 
 - **◀ ▶** jump between days with data. **Show…** widens the view to the week, month or year around the From date, or everything.
 - **Lines** draws your movements, one colour per day; **Clean up** switches between cleaned lines and the readings as recorded.
@@ -155,7 +157,7 @@ A database made by an earlier version of this script has a single `timeline` tab
 
 ## Privacy
 
-Your location history shows where you live, work and sleep. This script works entirely on your own computer and never sends your history anywhere. The pages and the heatmap file load map pictures from OpenStreetMap and the map library from unpkg.com, and snapping downloads road layouts from Overpass. Those services see which areas you look at or snap, but not your track, its times or which days you looked at. The exports, the database and everything the script writes are listed in `.gitignore`; keep them out of any repository or shared folder.
+Your location history shows where you live, work and sleep. This script works entirely on your own computer and never sends your history anywhere. The pages and the heatmap file load map pictures from OpenStreetMap and the map library from unpkg.com, the pages load the Roboto font and Material Symbols icons from Google Fonts, and snapping downloads road layouts from Overpass. OpenStreetMap and Overpass see which areas you look at or snap; none of these services sees your track, its times or which days you looked at. The exports, the database and everything the script writes are listed in `.gitignore`; keep them out of any repository or shared folder.
 
 ## Tests
 

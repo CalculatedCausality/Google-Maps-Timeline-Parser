@@ -122,7 +122,7 @@ def test_pages_and_scripts_are_served_with_a_strict_policy(server, page, script)
     assert script in body and b'integrity="sha384-' in body
     status, headers, _ = get(server, script.decode())
     assert status == 200 and headers['Content-Type'].startswith('text/javascript')
-    status, headers, _ = get(server, '/app.css')
+    status, headers, _ = get(server, '/material.css')
     assert status == 200 and headers['Content-Type'].startswith('text/css')
 
 
@@ -271,6 +271,21 @@ def test_snap_failure_is_reported_and_nothing_saved(server, fetcher):
 def test_bad_edits_are_rejected(server, body, message):
     status, answer = post(server, body)
     assert status == 400 and message in answer['error']
+
+
+def test_flights_are_not_snapped(server, fetcher):
+    flight = get_json(server, '/api/day?date=2019-07-03')['items'][1]
+    status, answer = post(server, {'date': '2019-07-03', 'item_id': flight['id'], 'action': 'snap'})
+    assert status == 409 and 'no roads to follow' in answer['error']
+    assert fetcher.calls == []
+
+
+def test_walks_are_matched_against_paths(server, fetcher):
+    move = [i for i in get_json(server, '/api/day?date=2019-02-10')['items']
+            if i['kind'] == 'move'][0]
+    assert move['mode'] == 'walking'
+    post(server, {'date': '2019-02-10', 'item_id': move['id'], 'action': 'snap'})
+    assert {profile for _, profile in fetcher.calls} == {'foot'}
 
 
 def test_wrong_mode_or_action_is_rejected(server):
